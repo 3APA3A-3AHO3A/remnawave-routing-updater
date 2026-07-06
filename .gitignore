@@ -1,0 +1,23 @@
+# Настройки окружения
+.env
+my-template.json
+
+# Сгенерированные файлы
+output/
+
+# Кэш Python
+__pycache__/
+*.pyc
+*.py[cod]
+*$py.class
+
+# Виртуальные окружения и кэши инструментов
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Настройки сред разработки
+.idea/
+.vscode/

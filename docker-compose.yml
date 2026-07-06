@@ -1,0 +1,27 @@
+services:
+  routing-updater:
+    build: .
+    container_name: remna-routing-updater
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./template.json:/app/template.json:ro
+      - ./output:/app/output
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # [ДЛЯ ЛОКАЛЬНОГО ЗАПУСКА]
+    # Если панель на этом же сервере - раскомментируйте 2 строки ниже:
+#    networks:
+#      - remnawave-network
+
+# [ДЛЯ ЛОКАЛЬНОГО ЗАПУСКА]
+# Раскомментируйте блок ниже, чтобы подключиться к сети панели.
+#networks:
+#  remnawave-network:
+#    name: remnawave-network
+#    external: true

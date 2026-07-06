@@ -1,0 +1,53 @@
+{
+  "version": "1",
+  "rules": [
+      {
+      "name": "Happ",
+      "enabled": true,
+      "operator": "AND",
+      "conditions": [
+        {
+          "headerName": "user-agent",
+          "operator": "CONTAINS",
+          "value": "Happ",
+          "caseSensitive": false
+        }
+      ],
+      "responseType": "XRAY_JSON",
+      "responseModifications": {
+        "headers": [
+          {
+            "key": "routing",
+            "value": "happ://routing/onadd/BASE64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Incy",
+      "enabled": true,
+      "operator": "AND",
+      "conditions": [
+        {
+          "headerName": "user-agent",
+          "operator": "CONTAINS",
+          "value": "Incy",
+          "caseSensitive": false
+        }
+      ],
+      "responseType": "XRAY_JSON",
+      "responseModifications": {
+        "headers": [
+          {
+            "key": "autorouting",
+            "value": "incy://autorouting/onadd/https://panel.your-domain.com/routing.json"
+          },
+          {
+            "key": "routing",
+            "value": "incy://routing/onadd/BASE64"
+          }
+        ]
+      }
+    }
+  ]
+}
