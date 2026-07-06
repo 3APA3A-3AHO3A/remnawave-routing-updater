@@ -97,7 +97,7 @@ https://sub.your-domain.com {
         header Content-Type application/json
     }
 
-    # 2. Весь остальной трафик идет в панель
+    # 2. Весь остальной трафик идет в контейнер подписки
     reverse_proxy * http://127.0.0.1:3010
 }
 ```
