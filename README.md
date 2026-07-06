@@ -47,7 +47,7 @@
 
 **Зачем это нужно?** Функция `autorouting` в клиенте INCY работает путем периодического скачивания JSON-файла по прямой ссылке. Наш скрипт генерирует свежий файл и кладет его в локальную папку `./output`. Чтобы клиент мог получить к нему доступ из интернета (по ссылке `https://ваш-домен.com/routing.json`), вашему веб-серверу нужно явно указать, где лежит этот файл.
 
-Выберите ваш веб-сервер и тип его установки:
+Выберите ваш веб-сервер и тип его установки (в качестве примера используется `субдомен подписки`):
 
 ### 🟢 Настройка Nginx
 
@@ -89,7 +89,7 @@ location /routing.json {
 #### Вариант А: Caddy установлен на сервере (без Docker)
 Измените ваш `Caddyfile`, разделив трафик:
 ```caddyfile
-panel.your-domain.com {
+https://sub.your-domain.com {
     # 1. Отдаем статический JSON
     handle /routing.json {
         root * /opt/remnawave-routing-updater/output
@@ -98,9 +98,7 @@ panel.your-domain.com {
     }
 
     # 2. Весь остальной трафик идет в панель
-    handle {
-        reverse_proxy http://127.0.0.1:3000
-    }
+    reverse_proxy * http://127.0.0.1:3010
 }
 ```
 *Примените настройки:* `systemctl reload caddy`
@@ -114,20 +112,19 @@ panel.your-domain.com {
       - /opt/remnawave-routing-updater/output:/usr/share/caddy/routing_output:ro
 ```
 *Пересоздайте контейнер:* `docker compose up -d`
+
 2. Настройте `Caddyfile`, указав внутренний путь Docker:
 ```caddyfile
-panel.your-domain.com {
+https://sub.your-domain.com {
     # 1. Отдаем статический JSON
     handle /routing.json {
         root * /usr/share/caddy/routing_output
         file_server
         header Content-Type application/json
     }
-
-    # 2. Весь остальной трафик идет в панель
-    handle {
-        reverse_proxy http://remnawave:3000
-    }
+    
+    # 2. Весь остальной трафик идет в контейнер подписки
+    reverse_proxy * http://remnawave-subscription-page:3010
 }
 ```
 *Примените настройки:* `docker exec -w /etc/caddy имя_контейнера_caddy caddy reload`
