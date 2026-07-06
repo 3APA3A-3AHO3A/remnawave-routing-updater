@@ -45,32 +45,89 @@
 
 ## 🌐 Настройка веб-сервера (Reverse Proxy) для INCY
 
-**Зачем это нужно?** Функция `autorouting` в клиенте INCY работает путем периодического скачивания JSON-файла по прямой ссылке. Наш скрипт генерирует свежий файл и кладет его в локальную папку `./output`. Чтобы клиент мог получить к нему доступ из интернета, нужно указать вашему веб-серверу отдавать этот файл.
+**Зачем это нужно?** Функция `autorouting` в клиенте INCY работает путем периодического скачивания JSON-файла по прямой ссылке. Наш скрипт генерирует свежий файл и кладет его в локальную папку `./output`. Чтобы клиент мог получить к нему доступ из интернета (по ссылке `https://ваш-домен.com/routing.json`), вашему веб-серверу нужно явно указать, где лежит этот файл.
 
-Добавьте соответствующий блок в конфигурацию вашего домена:
+Выберите ваш веб-сервер и тип его установки:
 
-### Вариант 1: Для Nginx
-Добавьте этот блок *перед* основным `location /`:
+### 🟢 Настройка Nginx
+
+#### Вариант А: Nginx установлен на сервере (без Docker)
+Добавьте этот блок *перед* основным `location /` в конфигурацию вашего домена:
 ```nginx
 location /routing.json {
-    alias /полный/путь/к/папке/remnawave-routing-updater/output/routing.json;
+    # Укажите реальный путь до папки скрипта на сервере
+    alias /opt/remnawave-routing-updater/output/routing.json;
     add_header Content-Type application/json;
 }
 ```
-*Не забудьте перезапустить Nginx:* `systemctl reload nginx`
+*Примените настройки:* `systemctl reload nginx`
 
-### Вариант 2: Для Caddy
-Добавьте маршрут (handle) внутрь блока вашего домена:
+#### Вариант Б: Nginx работает в Docker
+Поскольку Nginx изолирован, ему нужно прокинуть папку внутрь контейнера.
+1. Откройте `docker-compose.yml` вашего Nginx и добавьте `volume`:
+```yaml
+    volumes:
+      # Прокидываем папку внутрь Nginx (только для чтения - ro)
+      - /opt/remnawave-routing-updater/output:/usr/share/nginx/routing_output:ro
+```
+*Пересоздайте контейнер:* `docker compose up -d`
+2. В конфиге домена укажите внутренний путь Docker:
+```nginx
+location /routing.json {
+    alias /usr/share/nginx/routing_output/routing.json;
+    add_header Content-Type application/json;
+}
+```
+*Примените настройки:* `docker exec ваш_контейнер_nginx nginx -s reload`
+
+---
+
+### 🔵 Настройка Caddy
+
+> ⚠️ **Важно:** В Caddy нельзя просто использовать глобальный `reverse_proxy *` вместе с раздачей файлов. Необходимо разделить маршруты с помощью блоков `handle`, иначе Caddy отправит запрос на файл в панель, и вы получите ошибку 502.
+
+#### Вариант А: Caddy установлен на сервере (без Docker)
+Измените ваш `Caddyfile`, разделив трафик:
 ```caddyfile
 panel.your-domain.com {
-    # ... ваши текущие настройки (reverse_proxy) ...
-
+    # 1. Отдаем статический JSON
     handle /routing.json {
-        root * /полный/путь/к/папке/remnawave-routing-updater/output
+        root * /opt/remnawave-routing-updater/output
         file_server
         header Content-Type application/json
     }
+
+    # 2. Весь остальной трафик идет в панель
+    handle {
+        reverse_proxy http://127.0.0.1:3000
+    }
 }
 ```
-*Не забудьте применить конфигурацию:* `caddy reload`
+*Примените настройки:* `systemctl reload caddy`
 
+#### Вариант Б: Caddy работает в Docker
+Поскольку Caddy изолирован, прокиньте ему папку с файлом.
+1. Откройте `docker-compose.yml` вашего Caddy и добавьте `volume`:
+```yaml
+    volumes:
+      # Прокидываем папку внутрь Caddy (только для чтения - ro)
+      - /opt/remnawave-routing-updater/output:/usr/share/caddy/routing_output:ro
+```
+*Пересоздайте контейнер:* `docker compose up -d`
+2. Настройте `Caddyfile`, указав внутренний путь Docker:
+```caddyfile
+panel.your-domain.com {
+    # 1. Отдаем статический JSON
+    handle /routing.json {
+        root * /usr/share/caddy/routing_output
+        file_server
+        header Content-Type application/json
+    }
+
+    # 2. Весь остальной трафик идет в панель
+    handle {
+        reverse_proxy http://remnawave:3000
+    }
+}
+```
+*Примените настройки:* `docker exec -w /etc/caddy имя_контейнера_caddy caddy reload`
