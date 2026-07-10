@@ -6,7 +6,8 @@ services:
     env_file:
       - .env
     volumes:
-      - ./template.json:/app/template.json:ro
+      # Ваш личный шаблон (создаётся из template.json, не отслеживается git)
+      - ./my-template.json:/app/template.json:ro
       - ./output:/app/output
     logging:
       driver: json-file

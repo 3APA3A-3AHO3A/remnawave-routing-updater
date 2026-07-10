@@ -1,0 +1,35 @@
+# Секреты и локальная конфигурация — НЕ должны попадать в образ
+.env
+my-template.json
+
+# Git и виртуальные окружения
+.git
+.gitignore
+.venv
+venv/
+
+# Сгенерированные файлы
+output/
+
+# Кэш Python
+__pycache__/
+*.pyc
+*.py[cod]
+*$py.class
+
+# Кэши инструментов
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Тесты и CI не нужны в рантайм-образе
+tests/
+.github/
+
+# IDE
+.idea/
+.vscode/
+
+# Документация не нужна внутри образа
+*.md
+LICENSE
