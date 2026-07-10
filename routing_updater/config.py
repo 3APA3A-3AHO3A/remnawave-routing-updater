@@ -21,6 +21,11 @@ PANEL_URL = os.getenv("PANEL_URL", "http://remnawave:3000").rstrip("/")
 API_TOKEN = os.getenv("API_TOKEN", "")
 
 AUTOROUTING_URL = os.getenv("AUTOROUTING_URL", "https://example.com/routing.json")
+
+# The autorouting link is considered configured only when a real URL is given.
+# Empty or the example.com placeholder means "not set": INCY then runs on the
+# routing header alone (like Happ), without shipping a broken autorouting header.
+AUTOROUTING_ENABLED = bool(AUTOROUTING_URL) and "example.com" not in AUTOROUTING_URL
 UPDATE_INTERVAL = int(os.getenv("UPDATE_INTERVAL_SECONDS", 21600))
 
 TEMPLATE_PATH = os.getenv("TEMPLATE_PATH", "/app/template.json")

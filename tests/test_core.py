@@ -46,6 +46,41 @@ def test_apply_changes_keeps_existing_incy_response_type():
     assert data["responseRules"]["rules"][0]["responseType"] == "XRAY_JSON"
 
 
+def test_apply_changes_skips_autorouting_on_created_rule_when_disabled():
+    data = {}
+    core.apply_changes(
+        data,
+        LINKS,
+        enable_happ=False,
+        enable_incy=True,
+        incy_response_type="XRAY_BASE64",
+        incy_autorouting=False,
+    )
+    rule = data["responseRules"]["rules"][0]
+    keys = {h["key"] for h in rule["responseModifications"]["headers"]}
+    assert keys == {"routing"}
+
+
+def test_apply_changes_skips_autorouting_on_existing_rule_when_disabled():
+    data = {
+        "responseRules": {
+            "version": "1",
+            "rules": [{"name": "Incy", "responseType": "XRAY_JSON"}],
+        }
+    }
+    core.apply_changes(
+        data,
+        LINKS,
+        enable_happ=False,
+        enable_incy=True,
+        incy_response_type="XRAY_BASE64",
+        incy_autorouting=False,
+    )
+    headers = data["responseRules"]["rules"][0]["responseModifications"]["headers"]
+    keys = {h["key"] for h in headers}
+    assert keys == {"routing"}
+
+
 def test_apply_changes_does_nothing_when_both_disabled():
     data = {"foo": "bar"}
     summary = core.apply_changes(

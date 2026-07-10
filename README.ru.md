@@ -62,7 +62,7 @@
 
 **Happ (`ENABLE_HAPP`, включён по умолчанию).** Работает «из коробки»: скрипт пишет встроенное верхнеуровневое поле `happRouting`, поэтому клиенты Happ покрыты без дополнительной настройки. Если у вас есть правило ответа, в имени которого встречается `Happ`, его заголовок `routing` тоже обновится.
 
-**INCY (`ENABLE_INCY`, выключен по умолчанию).** При включении скрипт обновляет заголовки `routing` и `autorouting` у **всех** правил, чьё имя похоже на `Incy` (без учёта регистра). Если такого правила нет — **создаёт дефолтное автоматически**, так что ручная настройка в панели необязательна. Вновь созданное правило использует `responseType: XRAY_BASE64` (ближе всего к дефолту панели); у уже существующих правил `responseType` не трогается вообще — тип для создаваемого правила меняется через `INCY_RESPONSE_TYPE`. Также для INCY нужен `AUTOROUTING_URL`, указывающий на ваш раздаваемый `routing.json` (см. раздел про reverse proxy ниже).
+**INCY (`ENABLE_INCY`, выключен по умолчанию).** При включении скрипт обновляет заголовки `routing` и `autorouting` у **всех** правил, чьё имя похоже на `Incy` (без учёта регистра). Если такого правила нет — **создаёт дефолтное автоматически**, так что ручная настройка в панели необязательна. Вновь созданное правило использует `responseType: XRAY_BASE64` (ближе всего к дефолту панели); у уже существующих правил `responseType` не трогается вообще — тип для создаваемого правила меняется через `INCY_RESPONSE_TYPE`. Для функции `autorouting` задайте `AUTOROUTING_URL`, указывающий на ваш раздаваемый `routing.json` (см. раздел про reverse proxy ниже). Он необязателен: если его не задать, INCY работает только на хэдере `routing` (как Happ) — хэдер `autorouting` вообще не добавляется, а не указывает на заглушку.
 
 > 💡 Вы всё ещё можете заранее создать правило `Incy` вручную, если нужны кастомные условия срабатывания — скрипт заполнит и будет поддерживать его заголовки в актуальном состоянии. Структуру смотрите в [response_rules.example.json](./response_rules.example.json).
 
@@ -79,7 +79,7 @@
 | `ENABLE_HAPP` | Включить поддержку Happ | `true` |
 | `ENABLE_INCY` | Включить поддержку INCY (обновляет или создаёт правило Incy) | `false` |
 | `INCY_RESPONSE_TYPE` | `responseType` только для автосоздаваемого правила INCY | `XRAY_BASE64` |
-| `AUTOROUTING_URL` | Ссылка, по которой веб-сервер отдаёт `routing.json` (нужна для INCY) | `https://sub.your-domain.com/routing.json` |
+| `AUTOROUTING_URL` | Ссылка, по которой веб-сервер отдаёт `routing.json` (опционально; включает `autorouting` у INCY — без неё только `routing`) | `https://sub.your-domain.com/routing.json` |
 | `UPDATE_INTERVAL_SECONDS` | Интервал обновления в секундах | `21600` (6 часов) |
 | `REQUEST_TIMEOUT_SECONDS` | Таймаут HTTP-запросов к API | `30` |
 | `RETRY_ATTEMPTS` | Число попыток при сетевой ошибке | `3` |
@@ -91,36 +91,54 @@
 
 ## 🚀 Установка и запуск
 
-1. Склонируйте репозиторий:
+Сервис распространяется готовым образом в **GitHub Container Registry**, так что ничего клонировать и собирать не нужно — достаточно положить три файла в пустую папку и запустить.
+
+1. Создайте папку и скачайте файлы:
    ```bash
-   git clone https://github.com/3APA3A-3AHO3A/remnawave-routing-updater.git
-   cd remnawave-routing-updater
+   mkdir remnawave-routing-updater && cd remnawave-routing-updater
+   curl -O https://raw.githubusercontent.com/3APA3A-3AHO3A/remnawave-routing-updater/master/docker-compose.yml
+   curl -o .env https://raw.githubusercontent.com/3APA3A-3AHO3A/remnawave-routing-updater/master/.env.example
+   curl -o my-template.json https://raw.githubusercontent.com/3APA3A-3AHO3A/remnawave-routing-updater/master/template.json
    ```
 
 2. Настройте конфигурацию:
    ```bash
-   cp .env.example .env
    nano .env
    ```
    *Вставьте ваш `API_TOKEN`, укажите `PANEL_URL` и включите нужных клиентов (`ENABLE_HAPP` / `ENABLE_INCY`). Для INCY также задайте `AUTOROUTING_URL`.*
 
-3. Создайте свой шаблон роутинга из примера и отредактируйте его:
+3. Отредактируйте свой шаблон роутинга `my-template.json`:
    ```bash
-   cp template.json my-template.json
    nano my-template.json
    ```
    Добавьте свои правила (`DirectSites`, базы обхода и т.д.). **Внимание:** поле `LastUpdated` добавлять не нужно — скрипт генерирует его сам.
-   > 💡 Работаем именно с `my-template.json` (он не отслеживается git), чтобы ваши правки не конфликтовали при обновлении проекта через `git pull`. Файл `template.json` остаётся эталоном.
 
-4. Запустите сервис:
+4. Запустите сервис (образ скачается из GHCR):
    ```bash
-   docker compose up -d --build
+   docker compose up -d
    ```
 
 5. Просмотр логов:
    ```bash
    docker logs -f remna-routing-updater
    ```
+
+Обновление в будущем — подтянуть свежий образ и пересоздать: `docker compose pull && docker compose up -d`.
+
+<details>
+<summary>Собрать из исходников (для разработки)</summary>
+
+Если нужно править код — склонируйте репозиторий и собирайте локально. Замените строку `image:` в `docker-compose.yml` на `build: .`, затем:
+
+```bash
+git clone https://github.com/3APA3A-3AHO3A/remnawave-routing-updater.git
+cd remnawave-routing-updater
+cp .env.example .env && nano .env
+cp template.json my-template.json && nano my-template.json
+docker compose up -d --build
+```
+> 💡 Работаем именно с `my-template.json` (не отслеживается git), чтобы правки не конфликтовали при `git pull`; `template.json` остаётся эталоном.
+</details>
 
 ## ✅ Проверка, что всё работает
 
@@ -374,10 +392,10 @@ http:
 **Запуск / API**
 - **`CRITICAL ERROR: API_TOKEN is not set`** — не заполнен `API_TOKEN` в `.env`.
 - **`CRITICAL ERROR: both ENABLE_HAPP and ENABLE_INCY are disabled`** — включите хотя бы одного клиента.
-- **`AUTOROUTING_URL not changed (using example.com)`** — для INCY укажите реальную ссылку в `.env`.
+- **`AUTOROUTING_URL not set … autorouting header is skipped`** — это не ошибка: INCY работает только на хэдере `routing`. Задайте реальную ссылку в `.env`, чтобы включить функцию `autorouting`.
 - **`API error: 'response' object not found`** — неверный `PANEL_URL` или токен без прав `Subscription Template: Read/Write`.
 
-**Правки конфига не применяются** — `docker compose up -d` берёт старый образ. Пересоберите: `docker compose up -d --build`. Признак: код, который вы поменяли, не совпадает с тем, что в логах.
+**Правки конфига не применяются** — после изменения `.env` или `my-template.json` пересоздайте контейнер: `docker compose up -d --force-recreate`. Если образ устарел, сначала подтяните свежий: `docker compose pull && docker compose up -d`. (Собираете из исходников? Пересоберите: `docker compose up -d --build`.)
 
 **По ссылке `/routing.json` отдаётся HTML вместо JSON** — reverse proxy перехватывает запрос; проверьте настройку выше (в Caddy обязателен блок `handle`, в Traefik нужен более высокий приоритет роутера).
 

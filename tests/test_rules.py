@@ -53,3 +53,10 @@ def test_build_incy_rule_uses_given_response_type():
     assert rule["responseType"] == "XRAY_BASE64"
     keys = {h["key"]: h["value"] for h in rule["responseModifications"]["headers"]}
     assert keys == {"routing": "R", "autorouting": "A"}
+
+
+def test_build_incy_rule_omits_autorouting_when_none():
+    # No real AUTOROUTING_URL configured -> autorouting header must be absent, not blank.
+    rule = rules.build_incy_rule("R", None, "XRAY_BASE64")
+    keys = {h["key"]: h["value"] for h in rule["responseModifications"]["headers"]}
+    assert keys == {"routing": "R"}

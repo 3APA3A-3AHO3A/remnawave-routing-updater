@@ -62,7 +62,7 @@ Each client type is controlled by its own toggle in `.env`, so you enable only w
 
 **Happ (`ENABLE_HAPP`, on by default).** Works out of the box: the script writes the built-in top-level `happRouting` field, so Happ clients are covered without any extra setup. If you also keep a response rule whose name contains `Happ`, its `routing` header is updated too.
 
-**INCY (`ENABLE_INCY`, off by default).** When enabled, the script updates the `routing` and `autorouting` headers of **every** response rule whose name looks like `Incy` (case-insensitive). If no such rule exists, it **creates a default one automatically**, so manual panel setup is optional. A newly created rule uses `responseType: XRAY_BASE64` (closest to the panel default); rules that already exist keep their own `responseType` untouched — override the created-rule type via `INCY_RESPONSE_TYPE`. INCY also requires `AUTOROUTING_URL` to point at your served `routing.json` (see the reverse proxy section below).
+**INCY (`ENABLE_INCY`, off by default).** When enabled, the script updates the `routing` and `autorouting` headers of **every** response rule whose name looks like `Incy` (case-insensitive). If no such rule exists, it **creates a default one automatically**, so manual panel setup is optional. A newly created rule uses `responseType: XRAY_BASE64` (closest to the panel default); rules that already exist keep their own `responseType` untouched — override the created-rule type via `INCY_RESPONSE_TYPE`. For the `autorouting` feature, set `AUTOROUTING_URL` to your served `routing.json` (see the reverse proxy section below). It's optional: leave it unset and INCY runs on the `routing` header alone (just like Happ) — the `autorouting` header is skipped entirely rather than pointing clients at a placeholder.
 
 > 💡 You can still pre-create an `Incy` rule manually if you need custom match conditions — the script will fill in and keep its headers up to date. See [response_rules.example.json](./response_rules.example.json) for the structure.
 
@@ -79,7 +79,7 @@ All parameters live in the `.env` file (created from `.env.example`):
 | `ENABLE_HAPP` | Enable Happ support | `true` |
 | `ENABLE_INCY` | Enable INCY support (updates or creates the Incy rule) | `false` |
 | `INCY_RESPONSE_TYPE` | `responseType` for the auto-created INCY rule only | `XRAY_BASE64` |
-| `AUTOROUTING_URL` | URL your web server serves `routing.json` from (needed for INCY) | `https://sub.your-domain.com/routing.json` |
+| `AUTOROUTING_URL` | URL your web server serves `routing.json` from (optional; enables INCY `autorouting` — unset = `routing` only) | `https://sub.your-domain.com/routing.json` |
 | `UPDATE_INTERVAL_SECONDS` | Update interval in seconds | `21600` (6 hours) |
 | `REQUEST_TIMEOUT_SECONDS` | HTTP request timeout for the API | `30` |
 | `RETRY_ATTEMPTS` | Number of retries on a network error | `3` |
@@ -91,36 +91,54 @@ All parameters live in the `.env` file (created from `.env.example`):
 
 ## 🚀 Installation and launch
 
-1. Clone the repository:
+The service ships as a prebuilt image on the **GitHub Container Registry**, so there's nothing to clone or build — just grab three files into an empty folder and start it.
+
+1. Create a folder and download the files:
    ```bash
-   git clone https://github.com/3APA3A-3AHO3A/remnawave-routing-updater.git
-   cd remnawave-routing-updater
+   mkdir remnawave-routing-updater && cd remnawave-routing-updater
+   curl -O https://raw.githubusercontent.com/3APA3A-3AHO3A/remnawave-routing-updater/master/docker-compose.yml
+   curl -o .env https://raw.githubusercontent.com/3APA3A-3AHO3A/remnawave-routing-updater/master/.env.example
+   curl -o my-template.json https://raw.githubusercontent.com/3APA3A-3AHO3A/remnawave-routing-updater/master/template.json
    ```
 
 2. Set up the configuration:
    ```bash
-   cp .env.example .env
    nano .env
    ```
    *Paste your `API_TOKEN`, set `PANEL_URL`, and enable the clients you need (`ENABLE_HAPP` / `ENABLE_INCY`). For INCY, also set `AUTOROUTING_URL`.*
 
-3. Create your own routing template from the example and edit it:
+3. Edit your routing template `my-template.json`:
    ```bash
-   cp template.json my-template.json
    nano my-template.json
    ```
    Add your own rules (`DirectSites`, bypass databases, etc.). **Note:** do not add the `LastUpdated` field — the script generates it automatically.
-   > 💡 We work with `my-template.json` (which is not tracked by git) so your edits don't conflict when you update the project via `git pull`. The `template.json` file stays as the reference.
 
-4. Start the service:
+4. Start the service (pulls the image from GHCR):
    ```bash
-   docker compose up -d --build
+   docker compose up -d
    ```
 
 5. View the logs:
    ```bash
    docker logs -f remna-routing-updater
    ```
+
+To update later, pull the newest image and recreate: `docker compose pull && docker compose up -d`.
+
+<details>
+<summary>Build from source instead (for development)</summary>
+
+If you want to modify the code, clone the repo and build locally. Replace the `image:` line in `docker-compose.yml` with `build: .`, then:
+
+```bash
+git clone https://github.com/3APA3A-3AHO3A/remnawave-routing-updater.git
+cd remnawave-routing-updater
+cp .env.example .env && nano .env
+cp template.json my-template.json && nano my-template.json
+docker compose up -d --build
+```
+> 💡 We work with `my-template.json` (not tracked by git) so your edits don't conflict on `git pull`; `template.json` stays as the reference.
+</details>
 
 ## ✅ Verifying it works
 
@@ -375,10 +393,10 @@ Match `entryPoints`/`certResolver` to your `traefik.yml`. *Recreate:* `docker co
 **Startup / API**
 - **`CRITICAL ERROR: API_TOKEN is not set`** — `API_TOKEN` is empty in `.env`.
 - **`CRITICAL ERROR: both ENABLE_HAPP and ENABLE_INCY are disabled`** — enable at least one client.
-- **`AUTOROUTING_URL not changed (using example.com)`** — set a real link in `.env` for INCY.
+- **`AUTOROUTING_URL not set … autorouting header is skipped`** — not an error: INCY runs on the `routing` header only. Set a real link in `.env` to enable the `autorouting` feature.
 - **`API error: 'response' object not found`** — wrong `PANEL_URL`, or a token without `Subscription Template: Read/Write`.
 
-**Config changes don't take effect** — `docker compose up -d` reuses the existing image. Rebuild with `docker compose up -d --build`. Tell-tale sign: the code you changed doesn't match what the logs print.
+**Config changes don't take effect** — after editing `.env` or `my-template.json`, recreate the container: `docker compose up -d --force-recreate`. If you're on an outdated image, pull first: `docker compose pull && docker compose up -d`. (Building from source? Rebuild with `docker compose up -d --build`.)
 
 **`/routing.json` returns HTML instead of JSON** — the reverse proxy is intercepting the request; check the setup above (Caddy needs a `handle` block, Traefik a higher router priority).
 

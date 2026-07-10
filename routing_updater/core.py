@@ -11,6 +11,7 @@ import requests
 
 from . import checksums, geobuild, mirror, rules, state, templating
 from .config import (
+    AUTOROUTING_ENABLED,
     ENABLE_HAPP,
     ENABLE_INCY,
     GEO_CACHE_DIR,
@@ -27,11 +28,17 @@ from .logger import logger
 from .runtime import interruptible_sleep, shutdown_event
 
 
-def apply_changes(data, links, *, enable_happ, enable_incy, incy_response_type):
+def apply_changes(
+    data, links, *, enable_happ, enable_incy, incy_response_type, incy_autorouting=True
+):
     """Mutate the settings ``data`` according to the toggles. Returns a summary list.
 
     Toggles are passed in explicitly (dependency injection) rather than read from
     the config module, so tests can exercise every combination without monkeypatching.
+
+    ``incy_autorouting`` (paired with a non-null ``links['incy_autorouting']``) controls
+    whether the ``autorouting`` header is written. When no real ``AUTOROUTING_URL`` is
+    configured, INCY ships the ``routing`` header alone — no broken autorouting link.
     """
     summary = []
 
@@ -47,23 +54,24 @@ def apply_changes(data, links, *, enable_happ, enable_incy, incy_response_type):
         summary.append(f"Happ: field set, {touched} rule(s) updated")
 
     if enable_incy:
-        incy_pairs = [
-            ("routing", links["incy_routing"]),
-            ("autorouting", links["incy_autorouting"]),
-        ]
+        autorouting_link = links.get("incy_autorouting") if incy_autorouting else None
+        incy_pairs = [("routing", links["incy_routing"])]
+        if autorouting_link:
+            incy_pairs.append(("autorouting", autorouting_link))
         touched = rules.apply_headers_to_matching_rules(existing_rules, "incy", incy_pairs)
+        auto_note = "" if autorouting_link else " (routing only, autorouting skipped)"
         if touched == 0:
             # No Incy-like rule found — create a default one
             container = data.setdefault("responseRules", {})
             container.setdefault("version", "1")
             container.setdefault("rules", []).append(
                 rules.build_incy_rule(
-                    links["incy_routing"], links["incy_autorouting"], incy_response_type
+                    links["incy_routing"], autorouting_link, incy_response_type
                 )
             )
-            summary.append("Incy: no rule found — default rule created")
+            summary.append(f"Incy: no rule found — default rule created{auto_note}")
         else:
-            summary.append(f"Incy: {touched} rule(s) updated")
+            summary.append(f"Incy: {touched} rule(s) updated{auto_note}")
 
     return summary
 
@@ -162,6 +170,7 @@ def update_routing(client):
                 enable_happ=ENABLE_HAPP,
                 enable_incy=ENABLE_INCY,
                 incy_response_type=INCY_RESPONSE_TYPE,
+                incy_autorouting=AUTOROUTING_ENABLED,
             )
 
             client.patch_settings(data)

@@ -41,7 +41,16 @@ def apply_headers_to_matching_rules(rules, keyword, kv_pairs):
 
 
 def build_incy_rule(routing_link, autorouting_link, response_type):
-    """Build a default INCY response rule that matches the Incy user-agent."""
+    """Build a default INCY response rule that matches the Incy user-agent.
+
+    The ``autorouting`` header is included only when ``autorouting_link`` is truthy;
+    a falsy value means no real ``AUTOROUTING_URL`` is configured, so the rule ships
+    the ``routing`` header alone.
+    """
+    headers = []
+    if autorouting_link:
+        headers.append({"key": "autorouting", "value": autorouting_link})
+    headers.append({"key": "routing", "value": routing_link})
     return {
         "name": "Incy",
         "enabled": True,
@@ -55,10 +64,5 @@ def build_incy_rule(routing_link, autorouting_link, response_type):
             }
         ],
         "responseType": response_type,
-        "responseModifications": {
-            "headers": [
-                {"key": "autorouting", "value": autorouting_link},
-                {"key": "routing", "value": routing_link},
-            ]
-        },
+        "responseModifications": {"headers": headers},
     }

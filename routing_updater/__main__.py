@@ -6,7 +6,7 @@ the package be imported and tested without ever starting the service.
 
 from .config import (
     API_TOKEN,
-    AUTOROUTING_URL,
+    AUTOROUTING_ENABLED,
     ENABLE_HAPP,
     ENABLE_INCY,
     GEO_MIRROR_ENABLED,
@@ -37,10 +37,11 @@ def main():
         )
         raise SystemExit(1)
 
-    if ENABLE_INCY and "example.com" in AUTOROUTING_URL:
+    if ENABLE_INCY and not AUTOROUTING_ENABLED:
         logger.warning(
-            "AUTOROUTING_URL not changed (using example.com). "
-            "Set a real link in .env for INCY clients, otherwise autorouting won't work!"
+            "AUTOROUTING_URL not set (empty or still example.com) — the autorouting "
+            "header is skipped; INCY will run on the routing header only. Set a real "
+            "link in .env to enable autorouting."
         )
 
     if STAMP_MODE not in ("interval", "on_geo_change"):

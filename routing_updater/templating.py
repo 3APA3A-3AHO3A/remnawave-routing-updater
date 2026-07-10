@@ -9,7 +9,7 @@ import json
 import os
 import time
 
-from .config import AUTOROUTING_URL, OUTPUT_PATH, TEMPLATE_PATH
+from .config import AUTOROUTING_ENABLED, AUTOROUTING_URL, OUTPUT_PATH, TEMPLATE_PATH
 from .logger import logger
 
 
@@ -55,12 +55,18 @@ def encode_template(template):
 
 
 def build_links(template):
-    """Build the Happ/INCY deep-links from an (already stamped) template."""
+    """Build the Happ/INCY deep-links from an (already stamped) template.
+
+    ``incy_autorouting`` is ``None`` when no real ``AUTOROUTING_URL`` is configured,
+    so callers skip the autorouting header instead of pointing clients at a placeholder.
+    """
     b64 = encode_template(template)
     return {
         "happ_routing": f"happ://routing/onadd/{b64}",
         "incy_routing": f"incy://routing/onadd/{b64}",
-        "incy_autorouting": f"incy://autorouting/onadd/{AUTOROUTING_URL}",
+        "incy_autorouting": (
+            f"incy://autorouting/onadd/{AUTOROUTING_URL}" if AUTOROUTING_ENABLED else None
+        ),
     }
 
 
