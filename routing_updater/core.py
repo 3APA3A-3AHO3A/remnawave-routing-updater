@@ -14,6 +14,7 @@ from .config import (
     ENABLE_HAPP,
     ENABLE_INCY,
     GEO_CACHE_DIR,
+    GEO_DIR,
     GEO_MIRROR_ENABLED,
     GEO_TRIM_ENABLED,
     GEOIP_URL,

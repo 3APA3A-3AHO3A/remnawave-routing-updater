@@ -69,6 +69,29 @@ class FakeClient:
         self.patched = data
 
 
+def test_refresh_geo_trim_passes_config_dirs(monkeypatch):
+    # Regression: refresh_geo must import GEO_DIR / GEO_CACHE_DIR (a NameError shipped once).
+    monkeypatch.setattr(core, "GEO_MIRROR_ENABLED", True)
+    monkeypatch.setattr(core, "GEO_TRIM_ENABLED", True)
+
+    seen = {}
+    monkeypatch.setattr(
+        core.mirror, "mirror_geo_files", lambda geo_dir=None: seen.setdefault("mirror_dir", geo_dir)
+    )
+    monkeypatch.setattr(
+        core.geobuild, "trim_all",
+        lambda cache, out, site, ip: seen.update(cache=cache, out=out, site=site, ip=ip) or True,
+    )
+
+    template = {"DirectSites": ["geosite:private"], "DirectIp": ["geoip:private"]}
+    assert core.refresh_geo(template) is True
+    assert seen["mirror_dir"] == core.GEO_CACHE_DIR  # full downloaded into the private cache
+    assert seen["cache"] == core.GEO_CACHE_DIR
+    assert seen["out"] == core.GEO_DIR               # trimmed into the served dir
+    assert seen["site"] == {"PRIVATE"}
+    assert seen["ip"] == {"PRIVATE"}
+
+
 def test_update_routing_pushes_patched_settings(monkeypatch):
     # Replace the file I/O so no real template or output file is needed.
     monkeypatch.setattr(templating, "load_template", lambda: {"Name": "T"})
