@@ -49,7 +49,7 @@ INCY_RESPONSE_TYPE = os.getenv("INCY_RESPONSE_TYPE", "XRAY_BASE64")
 GEO_MIRROR_ENABLED = _as_bool(os.getenv("GEO_MIRROR_ENABLED"), default=False)
 
 # Public URLs handed to clients (written into the template). If empty, the value from
-# template.json is kept (GitHub) — so the default config keeps working outside RU.
+# template.json is kept (GitHub) — so the default config keeps working where GitHub is reachable.
 GEOIP_URL = os.getenv("GEOIP_URL", "").strip()
 GEOSITE_URL = os.getenv("GEOSITE_URL", "").strip()
 
@@ -67,6 +67,15 @@ GEOSITE_SOURCE_URL = os.getenv(
 # The .dat files and the state file live in the same directory as routing.json.
 GEO_DIR = os.path.dirname(OUTPUT_PATH)
 GEO_STATE_PATH = os.path.join(GEO_DIR, ".geo_state.json")
+
+# ---- Geo database trimming (server-side UseChunkFiles) ----
+# When enabled, the full databases are downloaded to a private cache and only the
+# categories referenced in the template are re-emitted into the served .dat files —
+# so clients fetch a tiny file instead of the full ~10–17 MB. Needs GEO_MIRROR_ENABLED.
+GEO_TRIM_ENABLED = _as_bool(os.getenv("GEO_TRIM_ENABLED"), default=False)
+
+# Where the full (untrimmed) databases are cached — not served to clients.
+GEO_CACHE_DIR = os.path.join(GEO_DIR, ".cache")
 
 # ---- LastUpdated stamping mode ----
 # "interval"      — bump LastUpdated every cycle (previous behaviour, default).

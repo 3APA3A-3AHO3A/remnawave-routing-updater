@@ -10,6 +10,7 @@ from .config import (
     ENABLE_HAPP,
     ENABLE_INCY,
     GEO_MIRROR_ENABLED,
+    GEO_TRIM_ENABLED,
     GEOIP_URL,
     GEOSITE_URL,
     PANEL_URL,
@@ -61,10 +62,18 @@ def main():
             "detected, so every cycle counts as a change (same as 'interval')."
         )
 
+    if GEO_TRIM_ENABLED and not GEO_MIRROR_ENABLED:
+        logger.warning(
+            "GEO_TRIM_ENABLED needs GEO_MIRROR_ENABLED (it trims the mirrored full "
+            "databases) — trimming will be skipped until the mirror is enabled."
+        )
+
     logger.info(
         f"Service started. Interval: {UPDATE_INTERVAL} sec. | API: {PANEL_URL} | "
         f"Happ: {'on' if ENABLE_HAPP else 'off'}, Incy: {'on' if ENABLE_INCY else 'off'} | "
-        f"Geo mirror: {'on' if GEO_MIRROR_ENABLED else 'off'}, Stamp: {STAMP_MODE}"
+        f"Geo mirror: {'on' if GEO_MIRROR_ENABLED else 'off'}"
+        f"{' (trimmed)' if GEO_MIRROR_ENABLED and GEO_TRIM_ENABLED else ''}, "
+        f"Stamp: {STAMP_MODE}"
     )
 
     client = RemnawaveClient()

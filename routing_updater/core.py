@@ -9,11 +9,13 @@ import time
 
 import requests
 
-from . import mirror, rules, state, templating
+from . import geobuild, mirror, rules, state, templating
 from .config import (
     ENABLE_HAPP,
     ENABLE_INCY,
+    GEO_CACHE_DIR,
     GEO_MIRROR_ENABLED,
+    GEO_TRIM_ENABLED,
     GEOIP_URL,
     GEOSITE_URL,
     INCY_RESPONSE_TYPE,
@@ -89,6 +91,27 @@ def decide_update(mode, geo_changed, state_data, now):
     return last_updated, must_patch, new_state
 
 
+def refresh_geo(template):
+    """Refresh the served geo databases. Returns True if a served file changed.
+
+    * mirror only  — download the full .dat straight into the served directory.
+    * mirror + trim — download the full .dat into a private cache, then re-emit only the
+      categories the template uses into the served .dat (server-side ``UseChunkFiles``).
+      "Changed" then means the *trimmed output* changed, i.e. the upstream database or the
+      template's category set changed.
+    * no mirror    — nothing to detect, so every cycle counts as a change.
+    """
+    if not GEO_MIRROR_ENABLED:
+        return True
+
+    if not GEO_TRIM_ENABLED:
+        return mirror.mirror_geo_files()
+
+    mirror.mirror_geo_files(geo_dir=GEO_CACHE_DIR)  # full -> private cache
+    site_categories, ip_categories = geobuild.categories_from_template(template)
+    return geobuild.trim_all(GEO_CACHE_DIR, GEO_DIR, site_categories, ip_categories)
+
+
 def update_routing(client):
     """Run one full update cycle against the given Remnawave client."""
     logger.info("Starting routing update...")
@@ -98,9 +121,8 @@ def update_routing(client):
         return
 
     # Refresh the local geo databases first, so the "re-download" signal we send to
-    # clients points at an already up-to-date mirror. Without the mirror we cannot know
-    # whether the database changed, so we treat every cycle as a change.
-    geo_changed = mirror.mirror_geo_files() if GEO_MIRROR_ENABLED else True
+    # clients points at an already up-to-date mirror.
+    geo_changed = refresh_geo(template)
 
     on_change = STAMP_MODE == "on_geo_change"
     state_data = state.load_state() if on_change else {}

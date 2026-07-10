@@ -11,21 +11,50 @@
 
 Скрипт использует **официальный API Remnawave** для обновления настроек подписки, что делает его максимально безопасным (никаких доступов к базе данных напрямую!). Логирование автоматически ротируется встроенными средствами Docker.
 
+## Оглавление
+
+- [Особенности](#особенности)
+- [Как это работает](#-как-это-работает)
+- [Поддержка клиентов](#-поддержка-клиентов)
+- [Переменные окружения](#-переменные-окружения)
+- [Установка и запуск](#-установка-и-запуск)
+- [Проверка, что всё работает](#-проверка-что-всё-работает)
+- [Гео-базы (зеркало и обрезка)](#-гео-базы-зеркало-и-обрезка)
+- [Настройка веб-сервера (Reverse Proxy)](#-настройка-веб-сервера-reverse-proxy)
+- [Troubleshooting](#-troubleshooting)
+- [Лицензия](#-лицензия)
+
 ## Особенности
-* Легковесный образ на базе `Alpine Linux`.
-* Работа через официальный API Remnawave (по токену).
-* Независимые тумблеры поддержки Happ и INCY.
-* Автосоздание дефолтного правила INCY, если его нет.
-* Автоматическая генерация файла `routing.json` для функции `autorouting` в INCY.
-* Автоматический перезапрос при сетевых сбоях и корректное завершение по `docker stop`.
+
+**Ядро**
+- Работает только через **официальный API Remnawave** (по токену) — без прямого доступа к БД.
+- Легковесный образ на базе `Alpine Linux`; логи ротируются средствами Docker.
+- Автоматический перезапрос при сетевых сбоях и корректное завершение по `docker stop`.
+- Покрыт тестами `pytest` и CI на GitHub Actions (`ruff` + тесты).
+
+**Поддержка клиентов**
+- Независимые тумблеры **Happ** и **INCY** — включаете только нужное.
+- Happ работает «из коробки» через встроенное поле `happRouting`.
+- INCY: обновляет каждое правило с именем `Incy`, а если его нет — **создаёт автоматически**; генерирует `routing.json` для функции `autorouting`.
+
+**Гео-базы (`geoip` / `geosite`)**
+- По умолчанию ничего не хранит и не качает — лишь «пинает» клиентов подтянуть свежие базы по ссылкам из шаблона.
+- **Своё зеркало** (`GEO_MIRROR_ENABLED`) — раздача баз с вашего домена для регионов, где заблокирован GitHub; условные `304`-запросы и атомарная запись.
+- **Серверная обрезка** (`GEO_TRIM_ENABLED`) — в раздачу попадают только категории из шаблона, файлы ужимаются с ~10–17 МБ до КБ (серверный аналог `UseChunkFiles`).
+- **Умная метка** (`STAMP_MODE=on_geo_change`) — бампить `LastUpdated` и патчить панель только когда база реально изменилась.
+
+**Раздача**
+- Готовые примеры reverse proxy для **Nginx / Angie, Caddy и Traefik** (варианты «на хосте» и «в Docker»).
 
 ## 🧠 Как это работает
 
-Может показаться, что скрипт скачивает и хранит базы у себя — это не так, и в этом вся элегантность.
+По умолчанию скрипт не скачивает и не хранит базы у себя — и в этом вся элегантность.
 
 Ссылки на `geoip.dat` и `geosite.dat` (например, репозиторий Loyalsoldier) прописаны прямо в шаблоне и **обновляются на стороне GitHub каждый день**. Клиенты Happ/INCY скачивают эти базы сами по ссылке — но только тогда, когда «видят», что конфигурация роутинга изменилась.
 
-Задача скрипта — раз в заданный интервал подменять в конфигурации метку времени `LastUpdated`. Из-за этого меняется итоговая Base64-строка, клиент считает роутинг обновлённым и заново тянет свежие базы по ссылкам. То есть сервис ничего не хранит и не качает сам — он лишь «пинает» клиентов, чтобы те подтянули актуальные базы. Поэтому и нагрузки, и рисков минимум.
+Задача скрипта — раз в заданный интервал подменять в конфигурации метку времени `LastUpdated`. Из-за этого меняется итоговая Base64-строка, клиент считает роутинг обновлённым и заново тянет свежие базы по ссылкам. То есть в этом режиме по умолчанию сервис ничего не качает и не хранит — он лишь «пинает» клиентов, чтобы те подтянули актуальные базы, а нагрузки и рисков минимум.
+
+Это по умолчанию предполагает, что клиенты могут достучаться до ссылок с базами. Там, где GitHub заблокирован, — не могут; для этого случая сервис **опционально** может зеркалить базы у себя (и даже обрезать их), см. [Гео-базы](#-гео-базы-зеркало-и-обрезка).
 
 ## ⚙️ Поддержка клиентов
 
@@ -58,6 +87,7 @@
 | `GEOIP_URL` / `GEOSITE_URL` | Публичные URL `.dat`, которые уходят клиентам (пусто = дефолт из шаблона) | — |
 | `GEOIP_SOURCE_URL` / `GEOSITE_SOURCE_URL` | Откуда сервер берёт базы | GitHub Loyalsoldier |
 | `STAMP_MODE` | Метка `LastUpdated`: `interval` или `on_geo_change` | `interval` |
+| `GEO_TRIM_ENABLED` | Отдавать только категории из шаблона (серверный `UseChunkFiles`) | `false` |
 
 ## 🚀 Установка и запуск
 
@@ -96,36 +126,76 @@
 
 В логах при успешном запуске вы увидите строки вида (сообщения выводятся на английском):
 ```
-Service started. Interval: 21600 sec. | API: https://panel.your-domain.com | Happ: on, Incy: off
+Service started. Interval: 21600 sec. | API: https://panel.your-domain.com | Happ: on, Incy: off | Geo mirror: off, Stamp: interval
 File /app/output/routing.json saved successfully.
 ✅ Remnawave database updated successfully! Happ: field set, 1 rule(s) updated
 ```
 Файл `./output/routing.json` должен появиться на диске, а по адресу `https://sub.your-domain.com/routing.json` (после настройки reverse proxy ниже) отдаваться валидный JSON.
 
-## 🐞 Troubleshooting
+## 🗺️ Гео-базы (зеркало и обрезка)
 
-* **`CRITICAL ERROR: API_TOKEN is not set`** — не заполнен `API_TOKEN` в `.env`.
-* **`CRITICAL ERROR: both ENABLE_HAPP and ENABLE_INCY are disabled`** — включите хотя бы одного клиента в `.env`.
-* **`AUTOROUTING_URL not changed (using example.com)`** — для INCY укажите реальную ссылку в `.env`.
-* **`API error: 'response' object not found`** — неверный `PANEL_URL` или токен без нужных прав (`Subscription Template: Read/Write`).
-* **По ссылке `/routing.json` отдаётся HTML вместо JSON** — reverse proxy перехватывает запрос; проверьте настройку ниже (в Caddy обязателен блок `handle`, в Traefik нужен более высокий приоритет роутера).
+Там, где заблокирован GitHub, базы можно раздавать самому и даже ужать до того, что реально использует ваш шаблон.
 
-## 🌐 Настройка веб-сервера (Reverse Proxy) для INCY
+Клиенты Happ/INCY качают `geoip.dat` / `geosite.dat` по ссылкам из шаблона
+(`Geoipurl` / `Geositeurl`) — по умолчанию с GitHub. Там, где GitHub заблокирован, эти загрузки
+часто не проходят и роутинг на клиенте ломается. Сервис умеет зеркалить обе базы на ваш сервер
+(рядом с `routing.json`) и отдавать клиентам ссылку на ваш домен.
 
-**Зачем это нужно?** Функция `autorouting` в клиенте INCY периодически скачивает JSON-файл по прямой ссылке. Скрипт генерирует свежий файл в локальную папку `./output`; ваш веб-сервер должен отдавать его по публичному адресу.
+**Как это работает.** Каждый цикл сервис скачивает базы из upstream (GitHub доступен с
+большинства серверов) условным запросом — если файл не менялся, приходит `304` и скачивание
+пропускается — и записывает их атомарно, поэтому прокси никогда не отдаст недописанный файл.
+Клиент всё равно качает **полный** файл и режет его локально (`UseChunkFiles`), так что вам
+нужно хостить всего **два статических файла** — без чанк-манифестов и особых имён.
 
-Отдавайте его с **домена вашей подписки** — клиент и так обновляет подписку по этому домену, значит и роутинг логично отдавать с того же хоста. Во всех примерах используется `https://sub.your-domain.com/routing.json`.
+**Включение** в `.env`:
+```dotenv
+GEO_MIRROR_ENABLED=true
+GEOIP_URL=https://sub.your-domain.com/geoip.dat
+GEOSITE_URL=https://sub.your-domain.com/geosite.dat
+```
+`GEOIP_URL` / `GEOSITE_URL` — это то, что получают клиенты; оставьте пустыми, чтобы сохранить
+дефолт из шаблона (GitHub). `template.json` держите указывающим на GitHub, чтобы установки там,
+где GitHub доступен, работали из коробки — переключение целиком в `.env`. Базы ложатся в тот же каталог `./output`,
+что и `routing.json`, поэтому примеры реверс-прокси ниже отдают все три файла сразу.
 
-> ⚠️ **Публичный адрес обязан в точности совпадать с `AUTOROUTING_URL` в вашем `.env`,** иначе autorouting молча не заработает.
+**Обрезать базы до категорий шаблона (опционально, `GEO_TRIM_ENABLED=true`).** Это серверный
+аналог `UseChunkFiles`: вместо полных ~10–17 МБ сервис скачивает базы в приватный кэш и
+пересобирает в раздаваемые `.dat` **только те категории, что реально упомянуты в шаблоне**
+(записи `geosite:`/`geoip:` в `DirectSites`/`ProxySites`/`BlockSites` и IP-полях). Шаблон, где
+используются лишь `geosite:private`, `geosite:category-ads-all` и `geoip:private`, ужимает `geosite.dat`
+с ~10 МБ до сотен КБ, а `geoip.dat` с ~17 МБ до считанных КБ. Клиент тянет крошечный файл — большой
+выигрыш на троттлящемся/DPI-канале. Обрезка идёт каждый цикл и сама ловит изменение, когда меняется
+либо база в upstream, либо набор категорий в шаблоне. Требует `GEO_MIRROR_ENABLED`; полные файлы
+лежат в `./output/.cache` и наружу не отдаются.
 
-Примеры дополняют официальные схемы reverse proxy от Remnawave ([docs.rw/install/reverse-proxies](https://docs.rw/install/reverse-proxies/)), где документированы **Caddy, Nginx, Traefik и Angie**. Сам Remnawave должен жить на корне домена/сабдомена (работа на суб-пути не поддерживается), но отдавать один свой статический файл по пути `/routing.json` рядом с подпиской это не запрещает — приложение остаётся на `/`, мы лишь выделяем один путь. В каждом примере выставлен `Cache-Control: no-store`, чтобы клиент всегда получал свежий файл, и предполагается официальный контейнер подписки `remnawave-subscription-page` на порту `3010`.
+**Обновлять метку только при изменении базы (опционально).** По умолчанию (`STAMP_MODE=interval`)
+метка `LastUpdated` — которая говорит клиентам перекачать гео-файлы — растёт каждый цикл. При
+включённом зеркале можно переключиться на `STAMP_MODE=on_geo_change`: метка меняется (и панель
+патчится) **только когда раздаваемая база реально изменилась**. Факт изменения определяется
+бесплатно из условного запроса зеркала (а при обрезке — из самого обрезанного вывода), поэтому
+можно снизить `UPDATE_INTERVAL_SECONDS` для более частой проверки, не переписывая панель и не дёргая
+клиентов на каждом цикле. Один интервал покрывает обе задачи — отдельная переменная не нужна.
 
-> Используете HAProxy впереди? Обычно это TCP/port-балансировщик, а не HTTP-прокси — терминируйте HTTPS на Nginx/Caddy/Angie позади него и отдавайте `/routing.json` там, по подходящему примеру ниже.
+## 🌐 Настройка веб-сервера (Reverse Proxy)
+
+**Зачем это нужно?** Функция `autorouting` в клиенте INCY периодически скачивает `routing.json` по прямой ссылке, а — если включено зеркало выше — клиенты так же качают `geoip.dat` / `geosite.dat`. Скрипт пишет все эти файлы в локальную папку `./output`; ваш веб-сервер отдаёт их по публичным адресам.
+
+Отдавайте их с **домена вашей подписки** — клиент и так обновляет подписку по этому домену, значит эти файлы логично держать на том же хосте. В примерах используются `https://sub.your-domain.com/routing.json`, `…/geoip.dat` и `…/geosite.dat`.
+
+> ⚠️ **Публичные адреса обязаны в точности совпадать с `AUTOROUTING_URL` / `GEOIP_URL` / `GEOSITE_URL` в вашем `.env`,** иначе клиент молча уйдёт на дефолт или не заработает.
+
+Примеры дополняют официальные схемы reverse proxy от Remnawave ([docs.rw/install/reverse-proxies](https://docs.rw/install/reverse-proxies/)), где документированы **Caddy, Nginx, Traefik и Angie**. Сам Remnawave должен жить на корне домена/сабдомена (работа на суб-пути не поддерживается), но отдавать рядом несколько своих статических файлов это не запрещает — приложение остаётся на `/`, мы лишь выделяем `/routing.json` и два пути `.dat`. `routing.json` отдаётся с `Cache-Control: no-store` (всегда свежий), а редко меняющиеся `.dat` кэшируются. Во всех примерах предполагается официальный контейнер подписки `remnawave-subscription-page` на порту `3010`.
+
+> Блоки `.dat` нужны **только если `GEO_MIRROR_ENABLED=true`**. Не используете зеркало? Пропустите их и отдавайте один `/routing.json`.
+
+> ⚠️ **Ловите `geoip`/`geosite` широко, а не только `\.dat$`.** Клиент перед скачиванием ещё пробует `<файл>.dat.sha256`. Если location матчит только `.dat`, этот запрос проваливается в `location /` и проксируется на бэкенд подписки (порт `3010`) — поток таких запросов может его перегрузить и сломать реальное обновление подписок. Широкий матч `^/(geoip|geosite)\.` держит все гео-запросы на nginx и отдаёт **статический 404** на отсутствующую контрольную сумму (ровно как GitHub — сумма необязательна).
+
+> Используете HAProxy впереди? Обычно это TCP/port-балансировщик, а не HTTP-прокси — терминируйте HTTPS на Nginx/Caddy/Angie позади него и отдавайте эти пути там, по подходящему примеру ниже.
 
 После настройки проверьте:
 ```bash
-curl -I https://sub.your-domain.com/routing.json
-# Ожидаем: HTTP/2 200, Content-Type: application/json, Cache-Control: no-store
+curl -I https://sub.your-domain.com/routing.json   # 200, Content-Type: application/json, Cache-Control: no-store
+curl -I https://sub.your-domain.com/geoip.dat      # 200, Content-Type: application/octet-stream  (только при зеркале)
 ```
 
 ### 🟢 Nginx и 🟣 Angie
@@ -138,6 +208,14 @@ location = /routing.json {
     alias /opt/remnawave-routing-updater/output/routing.json;
     types { } default_type application/json;
     add_header Cache-Control "no-store" always;
+}
+
+# Гео-базы — только если GEO_MIRROR_ENABLED=true
+location ~ ^/(geoip|geosite)\. {
+    root /opt/remnawave-routing-updater/output;
+    default_type application/octet-stream;
+    add_header Cache-Control "public, max-age=86400";
+    try_files $uri =404;
 }
 ```
 *Примените:* `nginx -s reload` (или `angie -s reload`)
@@ -155,6 +233,14 @@ location = /routing.json {
     alias /usr/share/nginx/routing_output/routing.json;
     types { } default_type application/json;
     add_header Cache-Control "no-store" always;
+}
+
+# Гео-базы — только если GEO_MIRROR_ENABLED=true
+location ~ ^/(geoip|geosite)\. {
+    root /usr/share/nginx/routing_output;
+    default_type application/octet-stream;
+    add_header Cache-Control "public, max-age=86400";
+    try_files $uri =404;
 }
 ```
 *Примените:* перезагрузите контейнер прокси (`docker exec <proxy> nginx -s reload`).
@@ -177,7 +263,16 @@ https://sub.your-domain.com {
         header Cache-Control no-store
     }
 
-    # 2. Весь остальной трафик идёт на страницу подписки
+    # 2. Гео-базы — только если GEO_MIRROR_ENABLED=true
+    @geo path /geoip.dat* /geosite.dat*
+    handle @geo {
+        root * /opt/remnawave-routing-updater/output
+        file_server
+        header Content-Type application/octet-stream
+        header Cache-Control "public, max-age=86400"
+    }
+
+    # 3. Весь остальной трафик идёт на страницу подписки
     reverse_proxy * http://127.0.0.1:3010
 }
 ```
@@ -201,6 +296,15 @@ https://sub.your-domain.com {
         header Cache-Control no-store
     }
 
+    # Гео-базы — только если GEO_MIRROR_ENABLED=true
+    @geo path /geoip.dat* /geosite.dat*
+    handle @geo {
+        root * /usr/share/caddy/routing_output
+        file_server
+        header Content-Type application/octet-stream
+        header Cache-Control "public, max-age=86400"
+    }
+
     reverse_proxy * http://remnawave-subscription-page:3010
 }
 ```
@@ -210,7 +314,7 @@ https://sub.your-domain.com {
 
 ### 🟠 Traefik
 
-Traefik — это прокси, а не файловый сервер, поэтому запустите крошечный контейнер для раздачи файла в той же сети `remnawave-network` и направьте на него `/routing.json`:
+Traefik — это прокси, а не файловый сервер, поэтому запустите крошечный контейнер для раздачи файлов в той же сети `remnawave-network` и направьте на него `/routing.json` (а при включённом зеркале — и гео-базы). Контейнер и так монтирует всю папку `./output`, так что доступны все три файла:
 ```yaml
   routing-file:
     image: nginx:alpine
@@ -229,14 +333,25 @@ http:
       rule: "Host(`sub.your-domain.com`) && Path(`/routing.json`)"
       entryPoints:
         - https
-      service: routing-json
+      service: routing-file
       priority: 1000          # выигрываем у роутера подписки на этом пути
       tls:
         certResolver: letsencrypt
       middlewares:
         - routing-nostore
+    # Гео-базы — только если GEO_MIRROR_ENABLED=true (кэшируются, отдельный middleware)
+    geo-files:
+      rule: "Host(`sub.your-domain.com`) && (Path(`/geoip.dat`) || Path(`/geoip.dat.sha256`) || Path(`/geosite.dat`) || Path(`/geosite.dat.sha256`))"
+      entryPoints:
+        - https
+      service: routing-file
+      priority: 1000
+      tls:
+        certResolver: letsencrypt
+      middlewares:
+        - geo-cache
   services:
-    routing-json:
+    routing-file:
       loadBalancer:
         servers:
           - url: "http://remna-routing-file:80"
@@ -245,82 +360,30 @@ http:
       headers:
         customResponseHeaders:
           Cache-Control: "no-store"
+    geo-cache:
+      headers:
+        customResponseHeaders:
+          Cache-Control: "public, max-age=86400"
 ```
 Подставьте свои `entryPoints`/`certResolver` из `traefik.yml`. *Пересоздайте:* `docker compose up -d`
 
-> Если ваш Traefik использует провайдер Docker-лейблов, вместо YAML выше повесьте эквивалентные лейблы на сервис `routing-file`: `...routers.routing-json.rule`, `...priority=1000`, `...service=routing-json`, `...loadbalancer.server.port=80` и middleware `routing-nostore`.
+> Если ваш Traefik использует провайдер Docker-лейблов, вместо YAML выше повесьте эквивалентные лейблы на сервис `routing-file`: роутер `routing-json` (`...rule=…Path(/routing.json)`, `...priority=1000`, `...service=routing-file`, `...loadbalancer.server.port=80`, middleware `routing-nostore`) и — при включённом зеркале — роутер `geo-files` (`...rule=…Path(/geoip.dat)||Path(/geoip.dat.sha256)||Path(/geosite.dat)||Path(/geosite.dat.sha256)`, тот же сервис, middleware `geo-cache`).
 
-## 🗺️ Зеркало гео-баз (для регионов, где заблокирован GitHub)
+## 🐞 Troubleshooting
 
-Клиенты Happ/INCY качают `geoip.dat` / `geosite.dat` по ссылкам из шаблона
-(`Geoipurl` / `Geositeurl`) — по умолчанию с GitHub. В России эти загрузки с GitHub часто
-не проходят, и роутинг на клиенте ломается. Сервис умеет зеркалить обе базы на ваш сервер
-(рядом с `routing.json`) и отдавать клиентам ссылку на ваш домен.
+**Запуск / API**
+- **`CRITICAL ERROR: API_TOKEN is not set`** — не заполнен `API_TOKEN` в `.env`.
+- **`CRITICAL ERROR: both ENABLE_HAPP and ENABLE_INCY are disabled`** — включите хотя бы одного клиента.
+- **`AUTOROUTING_URL not changed (using example.com)`** — для INCY укажите реальную ссылку в `.env`.
+- **`API error: 'response' object not found`** — неверный `PANEL_URL` или токен без прав `Subscription Template: Read/Write`.
 
-**Как это работает.** Каждый цикл сервис скачивает базы из upstream (GitHub доступен с
-большинства серверов) условным запросом — если файл не менялся, приходит `304` и скачивание
-пропускается. Запись атомарная, поэтому реверс-прокси никогда не отдаст недописанный файл.
-Клиент всё равно качает **полный** файл и режет его локально (`UseChunkFiles`), так что вам
-нужно хостить всего **два статических файла** — без чанк-манифестов и особых имён.
+**Правки конфига не применяются** — `docker compose up -d` берёт старый образ. Пересоберите: `docker compose up -d --build`. Признак: код, который вы поменяли, не совпадает с тем, что в логах.
 
-**Включение** в `.env`:
-```dotenv
-GEO_MIRROR_ENABLED=true
-GEOIP_URL=https://sub.your-domain.com/geoip.dat
-GEOSITE_URL=https://sub.your-domain.com/geosite.dat
-```
-`GEOIP_URL` / `GEOSITE_URL` — это то, что получают клиенты; оставьте пустыми, чтобы сохранить
-дефолт из шаблона (GitHub). `template.json` держите указывающим на GitHub, чтобы не-РУ
-установки работали из коробки — переключение целиком в `.env`.
+**По ссылке `/routing.json` отдаётся HTML вместо JSON** — reverse proxy перехватывает запрос; проверьте настройку выше (в Caddy обязателен блок `handle`, в Traefik нужен более высокий приоритет роутера).
 
-### Раздача `.dat`-файлов
-
-Базы ложатся в тот же каталог `./output`, что и `routing.json`, поэтому вы просто дополняете
-[настройку реверс-прокси выше](#-настройка-веб-сервера-reverse-proxy-для-incy) двумя файлами.
-В отличие от `routing.json` они меняются редко, так что их можно кэшировать.
-
-**Nginx и Angie** — рядом с location для `/routing.json`:
-```nginx
-location ~ ^/(geoip|geosite)\.dat$ {
-    root /opt/remnawave-routing-updater/output;   # или смонтированный путь в Docker
-    default_type application/octet-stream;
-    add_header Cache-Control "public, max-age=86400";
-    try_files $uri =404;
-}
-```
-
-**Caddy** — ещё один `handle` в том же блоке сайта:
-```caddyfile
-@geo path /geoip.dat /geosite.dat
-handle @geo {
-    root * /opt/remnawave-routing-updater/output   # или смонтированный путь в Docker
-    file_server
-    header Content-Type application/octet-stream
-    header Cache-Control "public, max-age=86400"
-}
-```
-
-**Traefik** — контейнер `remna-routing-file` (nginx) уже отдаёт каталог `./output`, поэтому
-достаточно расширить правило роутера, добавив базы:
-```yaml
-rule: "Host(`sub.your-domain.com`) && (Path(`/routing.json`) || Path(`/geoip.dat`) || Path(`/geosite.dat`))"
-```
-
-Проверка (лучше изнутри России):
-```bash
-curl -I https://sub.your-domain.com/geoip.dat
-# Ожидаем: HTTP/2 200, Content-Type: application/octet-stream, Content-Length в несколько МБ
-```
-
-### Обновлять метку только при изменении базы (опционально)
-
-По умолчанию (`STAMP_MODE=interval`) метка `LastUpdated` — которая говорит клиентам перекачать
-гео-файлы — растёт каждый цикл. При включённом зеркале можно переключиться на
-`STAMP_MODE=on_geo_change`: метка меняется (и панель патчится) **только когда база в upstream
-реально обновилась**. Факт изменения определяется бесплатно из условного запроса зеркала,
-поэтому можно снизить `UPDATE_INTERVAL_SECONDS` для более частой проверки, не переписывая
-панель и не дёргая клиентов на каждом цикле. Один интервал покрывает обе задачи — отдельная
-переменная для опроса не нужна.
+**Гео-файлы / подписка «отваливается»** (актуально только при включённом зеркале):
+- **`/geoip.dat` отдаётся 200, но не оттуда, либо `502`/`upstream prematurely closed` на `/geoip.dat.sha256`, `/sub/…`, `/assets/…`** — гео-запросы проксируются на бэкенд подписки (порт `3010`) вместо статики и могут его положить. Ловите `geoip`/`geosite` **широко** (`location ~ ^/(geoip|geosite)\.`), а не только `\.dat$`: клиент ещё пробует `<файл>.dat.sha256`, и он должен отдавать **статический 404**, а не идти на бэкенд. После правки перезагрузите nginx и один раз перезапустите контейнер подписки.
+- **Обрезанный `.dat` выглядит пустым / в логах `categories not found in source`** — имена категорий в шаблоне не совпадают с базой-источником. Сверьте `geosite:`/`geoip:` в `my-template.json` с категориями upstream.
 
 ## 📄 Лицензия
 

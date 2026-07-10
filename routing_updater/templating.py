@@ -27,7 +27,7 @@ def apply_overrides(template, geoip_url="", geosite_url=""):
     """Point the geo-database URLs at your own mirror, if configured.
 
     Empty values are ignored, so the template keeps its built-in defaults (GitHub) —
-    which is what non-RU deployments want out of the box.
+    which is what the default deployment wants out of the box.
     """
     if geoip_url:
         template["Geoipurl"] = geoip_url
