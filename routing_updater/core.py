@@ -9,7 +9,7 @@ import time
 
 import requests
 
-from . import geobuild, mirror, rules, state, templating
+from . import checksums, geobuild, mirror, rules, state, templating
 from .config import (
     ENABLE_HAPP,
     ENABLE_INCY,
@@ -106,11 +106,16 @@ def refresh_geo(template):
         return True
 
     if not GEO_TRIM_ENABLED:
-        return mirror.mirror_geo_files()
+        changed = mirror.mirror_geo_files()
+    else:
+        mirror.mirror_geo_files(geo_dir=GEO_CACHE_DIR)  # full -> private cache
+        site_categories, ip_categories = geobuild.categories_from_template(template)
+        changed = geobuild.trim_all(GEO_CACHE_DIR, GEO_DIR, site_categories, ip_categories)
 
-    mirror.mirror_geo_files(geo_dir=GEO_CACHE_DIR)  # full -> private cache
-    site_categories, ip_categories = geobuild.categories_from_template(template)
-    return geobuild.trim_all(GEO_CACHE_DIR, GEO_DIR, site_categories, ip_categories)
+    # Happ validates each served database against a <file>.sha256 sidecar (a trimmed
+    # file's hash differs from upstream's, so we must publish the hash of what we serve).
+    checksums.write_sidecars(GEO_DIR)
+    return changed
 
 
 def update_routing(client):

@@ -82,6 +82,9 @@ def test_refresh_geo_trim_passes_config_dirs(monkeypatch):
         core.geobuild, "trim_all",
         lambda cache, out, site, ip: seen.update(cache=cache, out=out, site=site, ip=ip) or True,
     )
+    monkeypatch.setattr(
+        core.checksums, "write_sidecars", lambda directory: seen.setdefault("cksum_dir", directory)
+    )
 
     template = {"DirectSites": ["geosite:private"], "DirectIp": ["geoip:private"]}
     assert core.refresh_geo(template) is True
@@ -90,6 +93,7 @@ def test_refresh_geo_trim_passes_config_dirs(monkeypatch):
     assert seen["out"] == core.GEO_DIR               # trimmed into the served dir
     assert seen["site"] == {"PRIVATE"}
     assert seen["ip"] == {"PRIVATE"}
+    assert seen["cksum_dir"] == core.GEO_DIR         # checksum sidecars for the served files
 
 
 def test_update_routing_pushes_patched_settings(monkeypatch):
