@@ -23,11 +23,23 @@ def upsert_header(headers, key, value):
     logger.info(f"Header '{key}' was missing from the rule — added automatically.")
 
 
-def apply_headers_to_matching_rules(rules, keyword, kv_pairs):
+def remove_header(headers, key):
+    """Drop every header with the given key. Returns True if anything was removed."""
+    before = len(headers)
+    headers[:] = [h for h in headers if h.get("key") != key]
+    removed = len(headers) < before
+    if removed:
+        logger.info(f"Header '{key}' removed from the rule (no longer configured).")
+    return removed
+
+
+def apply_headers_to_matching_rules(rules, keyword, kv_pairs, remove_keys=()):
     """Update the headers of every rule whose name looks like ``keyword``.
 
-    A rule's own ``responseType`` is never touched — we keep whatever the user set.
-    Returns the number of rules that were touched.
+    ``kv_pairs`` are upserted; any key in ``remove_keys`` is stripped afterwards, so a
+    header that is no longer configured (e.g. ``autorouting`` once ``AUTOROUTING_URL`` is
+    cleared) does not linger on an existing rule. A rule's own ``responseType`` is never
+    touched — we keep whatever the user set. Returns the number of rules that were touched.
     """
     count = 0
     for rule in rules:
@@ -36,6 +48,8 @@ def apply_headers_to_matching_rules(rules, keyword, kv_pairs):
             headers = modifications.setdefault("headers", [])
             for key, value in kv_pairs:
                 upsert_header(headers, key, value)
+            for key in remove_keys:
+                remove_header(headers, key)
             count += 1
     return count
 

@@ -5,12 +5,31 @@ loop and the retry backoff, so ``docker stop`` exits promptly instead of waiting
 out a long sleep.
 """
 
+import os
 import signal
 import threading
+import time
 
+from .config import HEARTBEAT_PATH
 from .logger import logger
 
 shutdown_event = threading.Event()
+
+
+def write_heartbeat(path=None):
+    """Touch the heartbeat file so the healthcheck knows the loop is alive.
+
+    Never raises — a heartbeat write failure must not take the service down.
+    """
+    path = path or HEARTBEAT_PATH
+    try:
+        directory = os.path.dirname(path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(str(int(time.time())))
+    except Exception as e:
+        logger.error(f"Failed to write heartbeat {path}: {e}")
 
 
 def _handle_signal(signum, frame):

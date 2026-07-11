@@ -79,7 +79,7 @@ All parameters live in the `.env` file (created from `.env.example`):
 | `ENABLE_HAPP` | Enable Happ support | `true` |
 | `ENABLE_INCY` | Enable INCY support (updates or creates the Incy rule) | `false` |
 | `INCY_RESPONSE_TYPE` | `responseType` for the auto-created INCY rule only | `XRAY_BASE64` |
-| `AUTOROUTING_URL` | URL your web server serves `routing.json` from (optional; enables INCY `autorouting` — unset = `routing` only) | `https://sub.your-domain.com/routing.json` |
+| `AUTOROUTING_URL` | URL your web server serves `routing.json` from (optional; enables INCY `autorouting` — unset = `routing` only) | — (unset) |
 | `UPDATE_INTERVAL_SECONDS` | Update interval in seconds | `21600` (6 hours) |
 | `REQUEST_TIMEOUT_SECONDS` | HTTP request timeout for the API | `30` |
 | `RETRY_ATTEMPTS` | Number of retries on a network error | `3` |
@@ -149,6 +149,8 @@ File /app/output/routing.json saved successfully.
 ✅ Remnawave database updated successfully! Happ: field set, 1 rule(s) updated
 ```
 The `./output/routing.json` file should appear on disk, and `https://sub.your-domain.com/routing.json` (after setting up the reverse proxy below) should serve valid JSON.
+
+The container also reports a Docker health status: `docker ps` shows `healthy` once the first cycle completes, and flips to `unhealthy` if the loop stalls for longer than one update interval — handy for `restart: unless-stopped` setups and external monitoring.
 
 ## 🗺️ Geo databases (mirror and trimming)
 

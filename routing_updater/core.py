@@ -56,9 +56,15 @@ def apply_changes(
     if enable_incy:
         autorouting_link = links.get("incy_autorouting") if incy_autorouting else None
         incy_pairs = [("routing", links["incy_routing"])]
+        remove_keys = ()
         if autorouting_link:
             incy_pairs.append(("autorouting", autorouting_link))
-        touched = rules.apply_headers_to_matching_rules(existing_rules, "incy", incy_pairs)
+        else:
+            # Not configured — strip any stale autorouting header left on existing rules.
+            remove_keys = ("autorouting",)
+        touched = rules.apply_headers_to_matching_rules(
+            existing_rules, "incy", incy_pairs, remove_keys=remove_keys
+        )
         auto_note = "" if autorouting_link else " (routing only, autorouting skipped)"
         if touched == 0:
             # No Incy-like rule found — create a default one

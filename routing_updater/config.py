@@ -73,6 +73,10 @@ GEOSITE_SOURCE_URL = os.getenv(
 GEO_DIR = os.path.dirname(OUTPUT_PATH)
 GEO_STATE_PATH = os.path.join(GEO_DIR, ".geo_state.json")
 
+# Liveness heartbeat: touched after every completed loop iteration. The Docker
+# HEALTHCHECK (see healthcheck.py) marks the container unhealthy if it goes stale.
+HEARTBEAT_PATH = os.path.join(GEO_DIR, ".heartbeat")
+
 # ---- Geo database trimming (server-side UseChunkFiles) ----
 # When enabled, the full databases are downloaded to a private cache and only the
 # categories referenced in the template are re-emitted into the served .dat files —

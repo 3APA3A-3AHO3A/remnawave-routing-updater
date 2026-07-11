@@ -81,6 +81,36 @@ def test_apply_changes_skips_autorouting_on_existing_rule_when_disabled():
     assert keys == {"routing"}
 
 
+def test_apply_changes_strips_stale_autorouting_from_existing_rule():
+    # A rule that already carries an autorouting header must lose it once autorouting
+    # is disabled — otherwise clients keep hitting the old link.
+    data = {
+        "responseRules": {
+            "version": "1",
+            "rules": [
+                {
+                    "name": "Incy",
+                    "responseType": "XRAY_JSON",
+                    "responseModifications": {
+                        "headers": [{"key": "autorouting", "value": "incy://old"}]
+                    },
+                }
+            ],
+        }
+    }
+    core.apply_changes(
+        data,
+        LINKS,
+        enable_happ=False,
+        enable_incy=True,
+        incy_response_type="XRAY_BASE64",
+        incy_autorouting=False,
+    )
+    headers = data["responseRules"]["rules"][0]["responseModifications"]["headers"]
+    keys = {h["key"] for h in headers}
+    assert keys == {"routing"}
+
+
 def test_apply_changes_does_nothing_when_both_disabled():
     data = {"foo": "bar"}
     summary = core.apply_changes(

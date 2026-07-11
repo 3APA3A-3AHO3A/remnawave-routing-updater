@@ -20,7 +20,12 @@ from .config import (
 from .core import update_routing
 from .logger import logger
 from .remnawave import RemnawaveClient
-from .runtime import install_signal_handlers, interruptible_sleep, shutdown_event
+from .runtime import (
+    install_signal_handlers,
+    interruptible_sleep,
+    shutdown_event,
+    write_heartbeat,
+)
 
 
 def main():
@@ -80,6 +85,7 @@ def main():
     client = RemnawaveClient()
     while not shutdown_event.is_set():
         update_routing(client)
+        write_heartbeat()  # mark the loop alive for the Docker healthcheck
         if shutdown_event.is_set():
             break
         logger.info(f"Waiting {UPDATE_INTERVAL} seconds...\n")

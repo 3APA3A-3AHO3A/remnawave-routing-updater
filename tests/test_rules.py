@@ -60,3 +60,27 @@ def test_build_incy_rule_omits_autorouting_when_none():
     rule = rules.build_incy_rule("R", None, "XRAY_BASE64")
     keys = {h["key"]: h["value"] for h in rule["responseModifications"]["headers"]}
     assert keys == {"routing": "R"}
+
+
+def test_remove_header_drops_matching_key():
+    headers = [{"key": "routing", "value": "R"}, {"key": "autorouting", "value": "A"}]
+    assert rules.remove_header(headers, "autorouting") is True
+    assert headers == [{"key": "routing", "value": "R"}]
+    assert rules.remove_header(headers, "autorouting") is False  # nothing left to remove
+
+
+def test_apply_headers_strips_stale_autorouting():
+    rule = {
+        "name": "Incy",
+        "responseModifications": {
+            "headers": [
+                {"key": "routing", "value": "old"},
+                {"key": "autorouting", "value": "stale"},
+            ]
+        },
+    }
+    rules.apply_headers_to_matching_rules(
+        [rule], "incy", [("routing", "R")], remove_keys=("autorouting",)
+    )
+    keys = {h["key"]: h["value"] for h in rule["responseModifications"]["headers"]}
+    assert keys == {"routing": "R"}  # autorouting stripped, routing refreshed

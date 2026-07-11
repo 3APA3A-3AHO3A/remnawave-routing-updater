@@ -79,7 +79,7 @@
 | `ENABLE_HAPP` | Включить поддержку Happ | `true` |
 | `ENABLE_INCY` | Включить поддержку INCY (обновляет или создаёт правило Incy) | `false` |
 | `INCY_RESPONSE_TYPE` | `responseType` только для автосоздаваемого правила INCY | `XRAY_BASE64` |
-| `AUTOROUTING_URL` | Ссылка, по которой веб-сервер отдаёт `routing.json` (опционально; включает `autorouting` у INCY — без неё только `routing`) | `https://sub.your-domain.com/routing.json` |
+| `AUTOROUTING_URL` | Ссылка, по которой веб-сервер отдаёт `routing.json` (опционально; включает `autorouting` у INCY — без неё только `routing`) | — (не задан) |
 | `UPDATE_INTERVAL_SECONDS` | Интервал обновления в секундах | `21600` (6 часов) |
 | `REQUEST_TIMEOUT_SECONDS` | Таймаут HTTP-запросов к API | `30` |
 | `RETRY_ATTEMPTS` | Число попыток при сетевой ошибке | `3` |
@@ -149,6 +149,8 @@ File /app/output/routing.json saved successfully.
 ✅ Remnawave database updated successfully! Happ: field set, 1 rule(s) updated
 ```
 Файл `./output/routing.json` должен появиться на диске, а по адресу `https://sub.your-domain.com/routing.json` (после настройки reverse proxy ниже) отдаваться валидный JSON.
+
+Контейнер также сообщает Docker свой health-статус: `docker ps` покажет `healthy` после первого успешного цикла и `unhealthy`, если цикл завис дольше, чем на один интервал обновления — удобно для `restart: unless-stopped` и внешнего мониторинга.
 
 ## 🗺️ Гео-базы (зеркало и обрезка)
 
