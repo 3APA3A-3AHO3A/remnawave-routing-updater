@@ -33,9 +33,11 @@ The script talks to the **official Remnawave API** to update subscription settin
 - Covered by a `pytest` suite and GitHub Actions CI (`ruff` + tests).
 
 **Client support**
-- Independent toggles for **Happ** and **INCY** — enable only what you need.
-- Happ works out of the box via the built-in `happRouting` field.
-- INCY: updates every `Incy`-named response rule, or **auto-creates** one if missing, and generates the `routing.json` used by its `autorouting` feature.
+- Works on **Remnawave 2.x and 3.x** with the same image — the only API it writes to (Response Rules) is identical on both majors.
+- **Happ and INCY are both supported out of the box**, handled by the exact same code path — one less thing to configure or get wrong.
+- The routing link goes into the matching **Response Rule** and nowhere else. Custom response headers and any other header on the rule are never touched.
+- Missing rule? It is **auto-created** for either client, directly above your catch-all rule, so manual panel setup is optional.
+- Generates the `routing.json` used by INCY's `autorouting` feature, and checks on startup that your reverse proxy actually serves it.
 
 **Geo databases (`geoip` / `geosite`)**
 - Default: stores and downloads nothing — just "nudges" clients to re-fetch fresh databases from the links in your template.
@@ -60,13 +62,28 @@ This default assumes clients can reach the database links. Where GitHub is block
 
 Each client type is controlled by its own toggle in `.env`, so you enable only what you need.
 
-**Happ (`ENABLE_HAPP`, on by default).** Works out of the box: the script writes the built-in top-level `happRouting` field, so Happ clients are covered without any extra setup. If you also keep a response rule whose name contains `Happ`, its `routing` header is updated too.
+Both clients are handled identically — the only difference is that INCY additionally supports `autorouting`, which Happ has no equivalent for. The routing link is written into the `routing` header of the client's own **Response Rule** and nowhere else.
 
-**INCY (`ENABLE_INCY`, off by default).** When enabled, the script updates the `routing` and `autorouting` headers of **every** response rule whose name looks like `Incy` (case-insensitive). If no such rule exists, it **creates a default one automatically**, so manual panel setup is optional. A newly created rule uses `responseType: XRAY_BASE64` (closest to the panel default); rules that already exist keep their own `responseType` untouched — override the created-rule type via `INCY_RESPONSE_TYPE`. For the `autorouting` feature, set `AUTOROUTING_URL` to your served `routing.json` (see the reverse proxy section below). It's optional: leave it unset and INCY runs on the `routing` header alone (just like Happ) — the `autorouting` header is skipped entirely rather than pointing clients at a placeholder.
+**Happ (`ENABLE_HAPP`) and INCY (`ENABLE_INCY`), both on by default.** For each enabled client the script updates the `routing` header of every response rule whose name contains `Happ` / `Incy` (case-insensitive), and creates one if none exists. Leaving a client enabled when you have no users on it costs one response rule and no requests, so there is rarely a reason to turn either off.
 
-> 💡 You can still pre-create an `Incy` rule manually if you need custom match conditions — the script will fill in and keep its headers up to date. See [response_rules.example.json](./response_rules.example.json) for the structure.
+**INCY autorouting.** Set `AUTOROUTING_URL` to your served `routing.json` (see the reverse proxy section below). It is optional: leave it unset and INCY runs on the `routing` header alone — the `autorouting` header is not written at all rather than pointing clients at a placeholder, and a stale one left on an existing rule is removed. On the first cycle the service fetches that URL and logs whether your reverse proxy actually serves the file it just wrote.
 
-To use the API, create a token under **Remnawave Settings → API Tokens** with `Read/Write` permissions for the *Subscription Template* section and copy it into your `.env` file.
+### What the updater will and will not do to your rules
+
+- Rules are matched **top-down, first hit wins**, and a request matching nothing gets `403`. A created rule is therefore inserted **directly above your catch-all rule** (the conditionless one Remnawave seeds as `Fallback Base64`) — appending it below would make it dead config.
+- A created rule **inherits the catch-all's `responseType`**, so your Happ/INCY users keep receiving exactly the subscription format they receive today; the only change is the added header. Override with `HAPP_RESPONSE_TYPE` / `INCY_RESPONSE_TYPE`, or set `CREATE_MISSING_RULES=false` to get a warning instead of a new rule.
+- Rules that already exist keep their own `responseType`, `conditions`, `enabled` flag, position, and every header the updater does not manage (`support-email`, `announce-url`, …).
+- Nothing is ever deleted, disabled or reordered, and nothing outside `responseRules` is written.
+
+> 💡 Pre-create the rules manually if you need custom match conditions — the script fills in and keeps their headers up to date. See [response_rules.example.json](./response_rules.example.json) for the structure.
+
+### Panel version
+
+`PANEL_VERSION=auto` (the default) detects the major version from the API response. You can pin it to `2` or `3`, but it changes nothing about what is sent: `GET`/`PATCH /api/subscription-settings` and the `responseRules` object it carries are identical on both majors.
+
+Version 3.0.0 removed the dedicated `happRouting` field, and this updater no longer writes it. On a 2.x panel a leftover value there is still delivered to Happ clients as a second, now-stale `routing` header — you'll get a warning about it. Clear it in the panel, or set `CLEAR_LEGACY_HAPP_ROUTING=true` to have the updater null it once.
+
+To use the API, create a token under **Remnawave Settings → API Tokens** with `Read/Write` permissions for the *Subscription Settings* section and copy it into your `.env` file.
 
 ## 🔧 Environment variables
 
@@ -76,9 +93,13 @@ All parameters live in the `.env` file (created from `.env.example`):
 | --- | --- | --- |
 | `PANEL_URL` | Your panel URL (with `https://`, no trailing slash) | `http://remnawave:3000` |
 | `API_TOKEN` | Remnawave API token (required) | — |
-| `ENABLE_HAPP` | Enable Happ support | `true` |
-| `ENABLE_INCY` | Enable INCY support (updates or creates the Incy rule) | `false` |
-| `INCY_RESPONSE_TYPE` | `responseType` for the auto-created INCY rule only | `XRAY_BASE64` |
+| `PANEL_VERSION` | Panel major version: `auto`, `2` or `3` | `auto` |
+| `ENABLE_HAPP` | Enable Happ support (updates or creates the Happ rule) | `true` |
+| `ENABLE_INCY` | Enable INCY support (updates or creates the Incy rule) | `true` |
+| `HAPP_RULE_MATCH` / `INCY_RULE_MATCH` | Substring used to find each client's rule by name | `happ` / `incy` |
+| `CREATE_MISSING_RULES` | Create a rule above the catch-all when none matches | `true` |
+| `HAPP_RESPONSE_TYPE` / `INCY_RESPONSE_TYPE` | `responseType` for auto-created rules only; empty = inherit from the catch-all | — (inherit) |
+| `CLEAR_LEGACY_HAPP_ROUTING` | Panel 2.x only: null out the legacy `happRouting` field | `false` |
 | `AUTOROUTING_URL` | URL your web server serves `routing.json` from (optional; enables INCY `autorouting` — unset = `routing` only) | — (unset) |
 | `UPDATE_INTERVAL_SECONDS` | Update interval in seconds | `21600` (6 hours) |
 | `REQUEST_TIMEOUT_SECONDS` | HTTP request timeout for the API | `30` |
@@ -212,6 +233,8 @@ These examples extend the official Remnawave reverse-proxy setups ([docs.rw/inst
 > ⚠️ **Match `geoip`/`geosite` broadly, not just `\.dat$`.** Clients also probe `<file>.dat.sha256` before downloading. If the location only matches `.dat`, that probe falls through to `location /` and gets proxied to the subscription backend (port `3010`) — a flood of these can overwhelm it and break real subscription updates. The broad `^/(geoip|geosite)\.` match keeps every geo request on nginx and returns a **static 404** for the missing checksum (exactly what GitHub does — the checksum is optional).
 
 > Running HAProxy in front? It's usually a TCP/port balancer rather than an HTTP proxy — terminate HTTPS on the Nginx/Caddy/Angie behind it and serve these paths there using the matching example below.
+
+> 📦 **Panel 3.x: enable compression on the proxy.** Since Remnawave 3.0.0 the panel no longer compresses response bodies itself. In Caddy add `encode` to both site blocks; in Nginx add `gzip on;` plus a `gzip_types` list that includes `application/json` and `text/plain`. Behind a CDN, follow the CDN's guidance instead — it usually compresses for you.
 
 After setup, verify:
 ```bash
@@ -395,6 +418,9 @@ Match `entryPoints`/`certResolver` to your `traefik.yml`. *Recreate:* `docker co
 **Startup / API**
 - **`CRITICAL ERROR: API_TOKEN is not set`** — `API_TOKEN` is empty in `.env`.
 - **`CRITICAL ERROR: both ENABLE_HAPP and ENABLE_INCY are disabled`** — enable at least one client.
+- **`AUTOROUTING_URL check: ... returned HTTP 404`** — the reverse proxy is not serving `routing.json`. Compare the `location` block against the volume this container writes to; the URL in `.env` must match the public one exactly, including `https://`.
+- **`AUTOROUTING_URL check: ... serves a different/older file`** — the proxy points at a different directory than the one the container writes to. Check the volume mapping on both sides.
+- **The log says success, but Happ/INCY users get no routing profile** — open *Subscription Settings → Response Rules* and check the rule order. Rules are matched top-down and the first hit wins, so a rule sitting below the conditionless `Fallback Base64` rule never fires. Move it above.
 - **`AUTOROUTING_URL not set … autorouting header is skipped`** — not an error: INCY runs on the `routing` header only. Set a real link in `.env` to enable the `autorouting` feature.
 - **`API error: 'response' object not found`** — wrong `PANEL_URL`, or a token without `Subscription Template: Read/Write`.
 

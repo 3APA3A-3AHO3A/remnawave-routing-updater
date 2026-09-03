@@ -9,9 +9,12 @@ import time
 
 import requests
 
-from . import checksums, geobuild, mirror, rules, state, templating
+from . import checksums, geobuild, mirror, remnawave, rules, state, templating
 from .config import (
     AUTOROUTING_ENABLED,
+    AUTOROUTING_URL,
+    CLEAR_LEGACY_HAPP_ROUTING,
+    CREATE_MISSING_RULES,
     ENABLE_HAPP,
     ENABLE_INCY,
     GEO_CACHE_DIR,
@@ -20,7 +23,12 @@ from .config import (
     GEO_TRIM_ENABLED,
     GEOIP_URL,
     GEOSITE_URL,
+    HAPP_RESPONSE_TYPE,
+    HAPP_RULE_MATCH,
     INCY_RESPONSE_TYPE,
+    INCY_RULE_MATCH,
+    PANEL_VERSION,
+    REQUEST_TIMEOUT,
     RETRY_ATTEMPTS,
     STAMP_MODE,
 )
@@ -28,13 +36,67 @@ from .logger import logger
 from .runtime import interruptible_sleep, shutdown_event
 
 
+def _sync_client_rules(
+    data, *, keyword, rule_name, user_agent, kv_pairs, remove_keys, response_type, create_missing
+):
+    """Write ``kv_pairs`` into every rule named like ``keyword``; create one if none exist.
+
+    Returns a short summary string. The rules list is only materialised when a rule
+    actually has to be created, so a panel with no matching rule and
+    ``create_missing=False`` is left completely untouched.
+    """
+    container = data.get("responseRules")
+    existing = container.get("rules", []) if isinstance(container, dict) else []
+    touched = rules.apply_headers_to_matching_rules(
+        existing, keyword, kv_pairs, remove_keys=remove_keys
+    )
+
+    if touched:
+        return f"{rule_name}: {touched} rule(s) updated"
+
+    if not create_missing:
+        logger.warning(
+            f"No response rule matching '{keyword}' found and rule creation is off — "
+            f"{rule_name} routing was not delivered. Create the rule in the panel "
+            f"(Subscription Settings -> Response Rules) or set CREATE_MISSING_RULES=true."
+        )
+        return f"{rule_name}: no rule found — skipped"
+
+    rule_list = rules.ensure_rules_config(data)
+    # An empty response_type means "keep serving what this client already gets" — we read
+    # it off the catch-all rule so creating the rule changes nothing but the header.
+    effective_type = response_type or rules.fallback_response_type(rule_list)
+    position = rules.insert_rule(
+        rule_list, rules.build_client_rule(rule_name, user_agent, kv_pairs, effective_type)
+    )
+    return (
+        f"{rule_name}: no rule found — created at position {position + 1} "
+        f"(responseType {effective_type})"
+    )
+
+
 def apply_changes(
-    data, links, *, enable_happ, enable_incy, incy_response_type, incy_autorouting=True
+    data,
+    links,
+    *,
+    enable_happ,
+    enable_incy,
+    incy_autorouting=True,
+    happ_response_type=HAPP_RESPONSE_TYPE,
+    incy_response_type=INCY_RESPONSE_TYPE,
+    happ_match=HAPP_RULE_MATCH,
+    incy_match=INCY_RULE_MATCH,
+    create_missing=CREATE_MISSING_RULES,
 ):
     """Mutate the settings ``data`` according to the toggles. Returns a summary list.
 
-    Toggles are passed in explicitly (dependency injection) rather than read from
-    the config module, so tests can exercise every combination without monkeypatching.
+    Only ``data['responseRules']`` is ever written. The dedicated ``happRouting`` field
+    is deliberately left alone: it is gone in panel 3.x, and even on 2.x writing both it
+    and the rule header meant the same link was injected from two places. Happ and INCY
+    are now handled identically — one routing header, inside the client's own rule.
+
+    Toggles are passed in explicitly (dependency injection) rather than read from the
+    config module, so tests can exercise every combination without monkeypatching.
 
     ``incy_autorouting`` (paired with a non-null ``links['incy_autorouting']``) controls
     whether the ``autorouting`` header is written. When no real ``AUTOROUTING_URL`` is
@@ -42,44 +104,132 @@ def apply_changes(
     """
     summary = []
 
-    response_rules = data.get("responseRules")
-    existing_rules = response_rules.get("rules", []) if isinstance(response_rules, dict) else []
-
     if enable_happ:
-        # Built-in field — works out of the box even without any rule
-        data["happRouting"] = links["happ_routing"]
-        touched = rules.apply_headers_to_matching_rules(
-            existing_rules, "happ", [("routing", links["happ_routing"])]
+        summary.append(
+            _sync_client_rules(
+                data,
+                keyword=happ_match,
+                rule_name="Happ",
+                user_agent="Happ",
+                kv_pairs=[("routing", links["happ_routing"])],
+                remove_keys=(),
+                response_type=happ_response_type,
+                create_missing=create_missing,
+            )
         )
-        summary.append(f"Happ: field set, {touched} rule(s) updated")
 
     if enable_incy:
         autorouting_link = links.get("incy_autorouting") if incy_autorouting else None
-        incy_pairs = [("routing", links["incy_routing"])]
+        kv_pairs = [("routing", links["incy_routing"])]
         remove_keys = ()
         if autorouting_link:
-            incy_pairs.append(("autorouting", autorouting_link))
+            kv_pairs.append(("autorouting", autorouting_link))
         else:
             # Not configured — strip any stale autorouting header left on existing rules.
             remove_keys = ("autorouting",)
-        touched = rules.apply_headers_to_matching_rules(
-            existing_rules, "incy", incy_pairs, remove_keys=remove_keys
-        )
-        auto_note = "" if autorouting_link else " (routing only, autorouting skipped)"
-        if touched == 0:
-            # No Incy-like rule found — create a default one
-            container = data.setdefault("responseRules", {})
-            container.setdefault("version", "1")
-            container.setdefault("rules", []).append(
-                rules.build_incy_rule(
-                    links["incy_routing"], autorouting_link, incy_response_type
-                )
+
+        note = "" if autorouting_link else " (routing only, autorouting skipped)"
+        summary.append(
+            _sync_client_rules(
+                data,
+                keyword=incy_match,
+                rule_name="Incy",
+                user_agent="Incy",
+                kv_pairs=kv_pairs,
+                remove_keys=remove_keys,
+                response_type=incy_response_type,
+                create_missing=create_missing,
             )
-            summary.append(f"Incy: no rule found — default rule created{auto_note}")
-        else:
-            summary.append(f"Incy: {touched} rule(s) updated{auto_note}")
+            + note
+        )
 
     return summary
+
+
+def legacy_happ_cleanup(data, major_version, enabled=CLEAR_LEGACY_HAPP_ROUTING):
+    """Return the extra PATCH fields needed to retire the 2.x ``happRouting`` field.
+
+    On 2.x the panel sends ``happRouting`` to Happ clients as a ``routing`` header of its
+    own. Since the updater no longer refreshes that field, a leftover value is a second,
+    stale source of routing — so we offer to null it once. Returns ``{}`` when there is
+    nothing to do (3.x, already empty, or the cleanup is switched off).
+    """
+    if major_version != 2 or not data.get("happRouting"):
+        return {}
+
+    if not enabled:
+        logger.warning(
+            "Panel 2.x still has a value in the legacy 'happRouting' field. It is sent to "
+            "Happ clients as a second 'routing' header and this updater no longer keeps it "
+            "fresh. Clear it in the panel, or set CLEAR_LEGACY_HAPP_ROUTING=true."
+        )
+        return {}
+
+    logger.info("Clearing the legacy 'happRouting' field (CLEAR_LEGACY_HAPP_ROUTING=true).")
+    data["happRouting"] = None
+    return {"happRouting": None}
+
+
+def resolve_major_version(settings, configured=PANEL_VERSION):
+    """Pick the panel major version: an explicit PANEL_VERSION wins over detection."""
+    if configured in ("2", "3"):
+        return int(configured)
+    if configured not in ("auto", ""):
+        logger.warning(
+            f"Unknown PANEL_VERSION '{configured}' — falling back to auto-detection. "
+            "Valid values: auto, 2, 3."
+        )
+    return remnawave.detect_major_version(settings)
+
+
+def verify_autorouting_url(url=AUTOROUTING_URL, timeout=REQUEST_TIMEOUT):
+    """One-shot check that AUTOROUTING_URL really serves the routing.json we just wrote.
+
+    Misconfiguring the reverse proxy is the single most common way to get stuck: the
+    service happily reports success while INCY clients silently fetch a 404. Comparing
+    the served ``LastUpdated`` against the local one turns that into one clear log line.
+    Never raises and never blocks the loop — it only warns.
+    """
+    local = templating.load_output()
+    if local is None:
+        return None  # nothing written yet, nothing to compare
+
+    try:
+        resp = requests.get(url, timeout=timeout)
+    except requests.exceptions.RequestException as e:
+        logger.warning(
+            f"AUTOROUTING_URL check: {url} is not reachable from this container ({e}). "
+            "If your reverse proxy is only reachable from outside, ignore this — "
+            "otherwise INCY clients will not get the routing profile either."
+        )
+        return False
+
+    if resp.status_code != 200:
+        logger.warning(
+            f"AUTOROUTING_URL check: {url} returned HTTP {resp.status_code}. The reverse "
+            "proxy is not serving routing.json — see the reverse proxy section of the README."
+        )
+        return False
+
+    try:
+        served = resp.json()
+    except ValueError:
+        logger.warning(
+            f"AUTOROUTING_URL check: {url} did not return JSON. It is probably pointing at "
+            "your subscription page instead of the served routing.json file."
+        )
+        return False
+
+    if served.get("LastUpdated") != local.get("LastUpdated"):
+        logger.warning(
+            f"AUTOROUTING_URL check: {url} is reachable but serves a different/older file "
+            f"(LastUpdated {served.get('LastUpdated')} vs local {local.get('LastUpdated')}). "
+            "Check that the proxy points at the same volume this container writes to."
+        )
+        return False
+
+    logger.info(f"AUTOROUTING_URL check: {url} serves the current routing.json. ✅")
+    return True
 
 
 def decide_update(mode, geo_changed, state_data, now):
@@ -126,8 +276,8 @@ def refresh_geo(template):
         site_categories, ip_categories = geobuild.categories_from_template(template)
         changed = geobuild.trim_all(GEO_CACHE_DIR, GEO_DIR, site_categories, ip_categories)
 
-    # Happ validates each served database against a <file>.sha256 sidecar (a trimmed
-    # file's hash differs from upstream's, so we must publish the hash of what we serve).
+    # Happ and INCY both validate each served database against a <file>.sha256 sidecar
+    # (a trimmed file's hash differs from upstream's, so we publish the hash of what we serve).
     checksums.write_sidecars(GEO_DIR)
     return changed
 
@@ -170,20 +320,28 @@ def update_routing(client):
                 logger.error("API error: 'response' object not found in server response.")
                 return
 
+            major = resolve_major_version(data)
+            logger.info(f"Panel API detected as v{major}.x" if major else "Panel version unknown")
+
             summary = apply_changes(
                 data,
                 links,
                 enable_happ=ENABLE_HAPP,
                 enable_incy=ENABLE_INCY,
-                incy_response_type=INCY_RESPONSE_TYPE,
                 incy_autorouting=AUTOROUTING_ENABLED,
             )
+            extra = legacy_happ_cleanup(data, major)
 
-            client.patch_settings(data)
+            client.patch_settings(remnawave.build_patch_payload(data, extra))
             if on_change:
                 new_state["applied"] = True
                 state.save_state(new_state)
             logger.info("✅ Remnawave database updated successfully! " + " | ".join(summary))
+            return
+
+        except ValueError as e:
+            # Malformed settings payload — retrying will not help.
+            logger.error(f"❌ Unexpected API response: {e}")
             return
 
         except requests.exceptions.RequestException as e:

@@ -7,6 +7,7 @@ the package be imported and tested without ever starting the service.
 from .config import (
     API_TOKEN,
     AUTOROUTING_ENABLED,
+    CREATE_MISSING_RULES,
     ENABLE_HAPP,
     ENABLE_INCY,
     GEO_MIRROR_ENABLED,
@@ -14,10 +15,11 @@ from .config import (
     GEOIP_URL,
     GEOSITE_URL,
     PANEL_URL,
+    PANEL_VERSION,
     STAMP_MODE,
     UPDATE_INTERVAL,
 )
-from .core import update_routing
+from .core import update_routing, verify_autorouting_url
 from .logger import logger
 from .remnawave import RemnawaveClient
 from .runtime import (
@@ -42,11 +44,23 @@ def main():
         )
         raise SystemExit(1)
 
+    if PANEL_VERSION not in ("auto", "2", "3"):
+        logger.warning(
+            f"Unknown PANEL_VERSION '{PANEL_VERSION}' — falling back to auto-detection. "
+            "Valid values: auto, 2, 3."
+        )
+
     if ENABLE_INCY and not AUTOROUTING_ENABLED:
         logger.warning(
             "AUTOROUTING_URL not set (empty or still example.com) — the autorouting "
             "header is skipped; INCY will run on the routing header only. Set a real "
             "link in .env to enable autorouting."
+        )
+
+    if not CREATE_MISSING_RULES:
+        logger.info(
+            "CREATE_MISSING_RULES=false — the updater will only refresh Response Rules "
+            "that already exist and will never add one."
         )
 
     if STAMP_MODE not in ("interval", "on_geo_change"):
@@ -76,6 +90,7 @@ def main():
 
     logger.info(
         f"Service started. Interval: {UPDATE_INTERVAL} sec. | API: {PANEL_URL} | "
+        f"Panel version: {PANEL_VERSION} | "
         f"Happ: {'on' if ENABLE_HAPP else 'off'}, Incy: {'on' if ENABLE_INCY else 'off'} | "
         f"Geo mirror: {'on' if GEO_MIRROR_ENABLED else 'off'}"
         f"{' (trimmed)' if GEO_MIRROR_ENABLED and GEO_TRIM_ENABLED else ''}, "
@@ -83,9 +98,18 @@ def main():
     )
 
     client = RemnawaveClient()
+    first_cycle = True
     while not shutdown_event.is_set():
         update_routing(client)
         write_heartbeat()  # mark the loop alive for the Docker healthcheck
+
+        if first_cycle:
+            # Only after routing.json exists on disk, and only once — a misconfigured
+            # reverse proxy is the most common way to get silently stuck.
+            if AUTOROUTING_ENABLED:
+                verify_autorouting_url()
+            first_cycle = False
+
         if shutdown_event.is_set():
             break
         logger.info(f"Waiting {UPDATE_INTERVAL} seconds...\n")

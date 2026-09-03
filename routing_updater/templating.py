@@ -81,3 +81,16 @@ def save_output(template):
     except Exception as e:
         logger.error(f"Error saving file: {e}")
         return False
+
+
+def load_output(path=None):
+    """Read back the routing.json we serve. Returns a dict, or None if unreadable.
+
+    Used by the AUTOROUTING_URL preflight check to compare what we wrote against what
+    the reverse proxy actually hands to clients.
+    """
+    try:
+        with open(path or OUTPUT_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None

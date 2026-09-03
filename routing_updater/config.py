@@ -20,6 +20,15 @@ def _as_bool(value, default=False):
 PANEL_URL = os.getenv("PANEL_URL", "http://remnawave:3000").rstrip("/")
 API_TOKEN = os.getenv("API_TOKEN", "")
 
+# ---- Panel major version ----
+# "auto" (default) — detected from the shape of GET /api/subscription-settings.
+# "2" / "3"        — forced, e.g. to make the startup log unambiguous.
+#
+# The updater only ever writes into ``responseRules``, and that part of the API is
+# byte-for-byte identical on 2.x and 3.x. So this setting only affects warnings and
+# the legacy cleanup below — never the payload we send.
+PANEL_VERSION = os.getenv("PANEL_VERSION", "auto").strip().lower()
+
 AUTOROUTING_URL = os.getenv("AUTOROUTING_URL", "https://example.com/routing.json")
 
 # The autorouting link is considered configured only when a real URL is given.
@@ -38,15 +47,41 @@ REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT_SECONDS", 30))
 RETRY_ATTEMPTS = int(os.getenv("RETRY_ATTEMPTS", 3))
 
 # ---- Client support toggles ----
-# Happ: updates the built-in happRouting field + any Happ-like response rule. On by default.
+# Both clients are handled identically: the routing link goes into the headers of the
+# matching Response Rule (SRR) and nowhere else. Nothing outside ``responseRules`` is
+# touched — subscription settings, custom response headers, and every other header
+# already present inside a rule are left exactly as the panel has them.
+#
+# Both default to on. Supporting a client the operator has no users on costs one extra
+# response rule and zero requests, while an operator who *does* have such users gets
+# working routing without reading the docs first.
 ENABLE_HAPP = _as_bool(os.getenv("ENABLE_HAPP"), default=True)
+ENABLE_INCY = _as_bool(os.getenv("ENABLE_INCY"), default=True)
 
-# INCY: updates any Incy-like rule, or creates a default one if missing. Off by default.
-ENABLE_INCY = _as_bool(os.getenv("ENABLE_INCY"), default=False)
+# Substring used to find each client's rule (case-insensitive match on the rule name).
+# Override if your rules are named something else, e.g. "Happ clients".
+HAPP_RULE_MATCH = os.getenv("HAPP_RULE_MATCH", "happ").strip().lower()
+INCY_RULE_MATCH = os.getenv("INCY_RULE_MATCH", "incy").strip().lower()
 
-# responseType for the auto-created INCY rule only (XRAY_BASE64 is closest to the panel
-# default). The responseType of rules that already exist is never changed.
-INCY_RESPONSE_TYPE = os.getenv("INCY_RESPONSE_TYPE", "XRAY_BASE64")
+# When no matching rule exists at all, create a default one. Turn off if you would
+# rather get a warning and add the rule yourself in the panel.
+CREATE_MISSING_RULES = _as_bool(os.getenv("CREATE_MISSING_RULES"), default=True)
+
+# responseType for AUTO-CREATED rules only. The responseType of a rule that already
+# exists is never changed — whatever you set in the panel stays.
+#
+# Empty (the default) means "inherit": the type is copied from the panel's catch-all
+# rule, i.e. the format these clients are already being served today. Creating the rule
+# then changes nothing except adding the routing header. Set explicitly to override.
+HAPP_RESPONSE_TYPE = os.getenv("HAPP_RESPONSE_TYPE", "").strip()
+INCY_RESPONSE_TYPE = os.getenv("INCY_RESPONSE_TYPE", "").strip()
+
+# ---- Legacy cleanup (panel 2.x only) ----
+# On 2.x the panel still has the dedicated ``happRouting`` field, whose value is sent to
+# Happ clients as a ``routing`` header. This updater no longer writes that field, so a
+# leftover value is a second, stale source of routing. Enable to null it out once.
+# On 3.x the field does not exist and this is a no-op.
+CLEAR_LEGACY_HAPP_ROUTING = _as_bool(os.getenv("CLEAR_LEGACY_HAPP_ROUTING"), default=False)
 
 # ---- Geo database mirror ----
 # When enabled, the service downloads geoip.dat / geosite.dat to this server (next to
