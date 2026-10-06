@@ -21,3 +21,6 @@ venv/
 # Настройки сред разработки
 .idea/
 .vscode/
+
+.env.*
+!.env.example
