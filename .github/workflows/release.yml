@@ -1,0 +1,54 @@
+# Релиз по тегу vX.Y.Z: проверяет, что версия в pyproject.toml и routing_updater/__init__.py
+# совпадает с тегом, и создаёт релиз с текстом из раздела «## X.Y.Z» в CHANGELOG.md.
+# Docker-образ для тега публикует docker-publish.yml.
+#   git tag v2.1.1 && git push origin v2.1.1
+# Если релиз уже создан на сайте вручную с текстом — текст не трогаем.
+name: Release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Версия в проекте = версия тега
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PYPROJECT=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml)
+          PACKAGE=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' routing_updater/__init__.py)
+          echo "тег $TAG, pyproject.toml $PYPROJECT, routing_updater $PACKAGE"
+          if [ "$TAG" != "$PYPROJECT" ] || [ "$TAG" != "$PACKAGE" ]; then
+            echo "Версии не совпадают — поправьте pyproject.toml и routing_updater/__init__.py"; exit 1
+          fi
+
+      - name: Текст из CHANGELOG
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          awk -v v="$V" '$0 ~ "^## "v" " {f=1; next} /^## / && f {exit} f' CHANGELOG.md > notes.md
+          if [ -z "$(tr -d '[:space:]' < notes.md)" ]; then
+            echo "В CHANGELOG.md нет раздела «## $V — …» — добавьте его и перевыпустите тег"; exit 1
+          fi
+          {
+            echo
+            echo '---'
+            echo "**Обновление / Upgrade:** \`docker compose pull && docker compose up -d\` (образ \`$IMAGE:$V\`, \`:latest\`)."
+          } >> notes.md
+          cat notes.md
+
+      - name: Создать релиз
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            BODY=$(gh release view "$GITHUB_REF_NAME" --json body --jq .body)
+            if [ -z "$(echo "$BODY" | tr -d '[:space:]')" ]; then gh release edit "$GITHUB_REF_NAME" --notes-file notes.md; fi
+          else
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md
+          fi

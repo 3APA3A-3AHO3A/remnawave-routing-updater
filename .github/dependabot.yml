@@ -1,0 +1,24 @@
+# Бот раз в неделю проверяет новые версии и открывает PR; каждый PR проходит CI (ruff + pytest).
+version: 2
+updates:
+  # requests, python-dotenv (requirements.txt — именно они ставятся в Docker-образ)
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      python:
+        patterns: ["*"]
+  # базовый образ python:3.12-alpine в Dockerfile
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+  # инструменты сборки на GitHub — одним общим PR
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]

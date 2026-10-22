@@ -5,4 +5,4 @@ by periodically re-stamping the routing template and pushing it through the
 official Remnawave API.
 """
 
-__version__ = "1.0.0"
+__version__ = "2.1.1"
