@@ -1,28 +1,36 @@
-# Remnawave Routing Auto Updater
+<p align="center">
+  <img src="docs/banner.svg" alt="routing-updater — fresh geoip/geosite routing for Happ and INCY in Remnawave" width="100%">
+</p>
 
-🌐 **English** | [Русский](./README.ru.md)
+<p align="center">
+  <a href="https://github.com/3APA3A-3AHO3A/remnawave-routing-updater/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/3APA3A-3AHO3A/remnawave-routing-updater?label=release&color=1f6feb"></a>
+  <a href="https://github.com/3APA3A-3AHO3A/remnawave-routing-updater/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/3APA3A-3AHO3A/remnawave-routing-updater/ci.yml?branch=master&label=CI"></a>
+  <a href="https://github.com/remnawave"><img alt="Remnawave" src="https://img.shields.io/badge/Remnawave-2.x%20%7C%203.x-0e8a9e"></a>
+  <img alt="clients" src="https://img.shields.io/badge/clients-Happ%20%C2%B7%20INCY-8957e5">
+  <img alt="Python" src="https://img.shields.io/badge/python-3.12-3776ab">
+  <a href="https://github.com/3APA3A-3AHO3A/remnawave-routing-updater/pkgs/container/remnawave-routing-updater"><img alt="docker" src="https://img.shields.io/badge/docker-ghcr.io%20%C2%B7%20amd64%20%7C%20arm64-1f6feb"></a>
+  <a href="LICENSE"><img alt="license" src="https://img.shields.io/github/license/3APA3A-3AHO3A/remnawave-routing-updater?color=6e7681"></a>
+</p>
 
-[![CI](https://github.com/3APA3A-3AHO3A/remnawave-routing-updater/actions/workflows/ci.yml/badge.svg)](https://github.com/3APA3A-3AHO3A/remnawave-routing-updater/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/python-3.12-blue)
-![Docker](https://img.shields.io/badge/docker-ready-2496ED)
-![License](https://img.shields.io/badge/license-MIT-green)
+<p align="center">
+  <a href="#installation-and-launch">🚀 Install</a> &nbsp;·&nbsp; <a href="#environment-variables">⚙️ Configuration</a> &nbsp;·&nbsp; <a href="#geo-databases-mirror-and-trimming">🗺️ Geo mirror</a> &nbsp;·&nbsp; <a href="#web-server-reverse-proxy-setup">🌐 Reverse proxy</a> &nbsp;·&nbsp; <a href="#troubleshooting">🐞 Troubleshooting</a> &nbsp;·&nbsp; <a href="README.ru.md">🇷🇺 Русский</a>
+</p>
 
 A standalone Python + Docker microservice that automatically keeps routing databases (`geoip`, `geosite`) up to date for **Happ** and **INCY** clients in the [Remnawave](https://github.com/remnawave) control panel.
 
 The script talks to the **official Remnawave API** to update subscription settings, which makes it as safe as possible — no direct database access whatsoever. Logs are rotated automatically by Docker's built-in mechanism.
 
-## Contents
+> [!TIP]
+> **Quick start.** No cloning or building: download three files (`docker-compose.yml`, `.env`, `my-template.json`), put your API token into `.env` and run `docker compose up -d`. Step by step — [Installation and launch](#installation-and-launch).
 
-- [Features](#features)
-- [How it works](#-how-it-works)
-- [Client support](#-client-support)
-- [Environment variables](#-environment-variables)
-- [Installation and launch](#-installation-and-launch)
-- [Verifying it works](#-verifying-it-works)
-- [Geo databases (mirror and trimming)](#-geo-databases-mirror-and-trimming)
-- [Web server (Reverse Proxy) setup](#-web-server-reverse-proxy-setup)
-- [Troubleshooting](#-troubleshooting)
-- [License](#-license)
+> [!IMPORTANT]
+> **What it changes in the panel.** Only the `routing` / `autorouting` headers of the Happ and INCY response rules (a missing rule is created above your catch-all). Nothing is ever deleted, disabled or reordered.
+
+## What it looks like
+
+<p align="center">
+  <img src="docs/demo.svg" alt="Service log: startup, geo mirror and trimming, routing.json saved, Happ and INCY rules updated" width="100%">
+</p>
 
 ## Features
 
@@ -48,7 +56,16 @@ The script talks to the **official Remnawave API** to update subscription settin
 **Delivery**
 - Copy-paste reverse-proxy guides for **Nginx / Angie, Caddy and Traefik** (host and Docker variants).
 
-## 🧠 How it works
+## How it works
+
+```mermaid
+flowchart LR
+    U["<b>routing-updater</b><br/>every 6 h"] -- "official API<br/>Response Rules" --> P["Remnawave panel"]
+    U -- "routing.json<br/>geoip / geosite (optional)" --> W["Your web server<br/>Nginx · Angie · Caddy · Traefik"]
+    P -- "subscription<br/>routing header" --> C["Happ / INCY clients"]
+    C -- "fresh geoip / geosite" --> G["GitHub<br/>or your mirror"]
+    C -. "autorouting" .-> W
+```
 
 By default the script doesn't download or store the databases itself — and that's the elegant part.
 
@@ -56,9 +73,14 @@ The links to `geoip.dat` and `geosite.dat` (e.g. the Loyalsoldier repository) ar
 
 The script's job is to swap the `LastUpdated` timestamp in the configuration once per interval. That changes the resulting Base64 string, the client considers the routing updated and re-fetches the fresh databases from the links. So in this default mode the service downloads and stores nothing — it merely "nudges" clients to pull the latest databases, keeping load and risk to a minimum.
 
-This default assumes clients can reach the database links. Where GitHub is blocked they can't — for that case the service can **optionally** mirror the databases itself (and even trim them); see [Geo databases](#-geo-databases-mirror-and-trimming).
+This default assumes clients can reach the database links. Where GitHub is blocked they can't — for that case the service can **optionally** mirror the databases itself (and even trim them); see [Geo databases](#geo-databases-mirror-and-trimming).
 
-## ⚙️ Client support
+## Documentation
+
+<details>
+<summary><b>⚙️ Client support — Happ, INCY, panel version</b></summary>
+
+### Client support
 
 Each client type is controlled by its own toggle in `.env`, so you enable only what you need.
 
@@ -68,7 +90,7 @@ Both clients are handled identically — the only difference is that INCY additi
 
 **INCY autorouting.** Set `AUTOROUTING_URL` to your served `routing.json` (see the reverse proxy section below). It is optional: leave it unset and INCY runs on the `routing` header alone — the `autorouting` header is not written at all rather than pointing clients at a placeholder, and a stale one left on an existing rule is removed. On the first cycle the service fetches that URL and logs whether your reverse proxy actually serves the file it just wrote.
 
-### What the updater will and will not do to your rules
+#### What the updater will and will not do to your rules
 
 - Rules are matched **top-down, first hit wins**, and a request matching nothing gets `403`. A created rule is therefore inserted **directly above your catch-all rule** (the conditionless one Remnawave seeds as `Fallback Base64`) — appending it below would make it dead config.
 - A created rule **inherits the catch-all's `responseType`**, so your Happ/INCY users keep receiving exactly the subscription format they receive today; the only change is the added header. Override with `HAPP_RESPONSE_TYPE` / `INCY_RESPONSE_TYPE`, or set `CREATE_MISSING_RULES=false` to get a warning instead of a new rule.
@@ -77,7 +99,7 @@ Both clients are handled identically — the only difference is that INCY additi
 
 > 💡 Pre-create the rules manually if you need custom match conditions — the script fills in and keeps their headers up to date. See [response_rules.example.json](./response_rules.example.json) for the structure.
 
-### Panel version
+#### Panel version
 
 `PANEL_VERSION=auto` (the default) detects the major version from the API response. You can pin it to `2` or `3`, but it changes nothing about what is sent: `GET`/`PATCH /api/subscription-settings` and the `responseRules` object it carries are identical on both majors.
 
@@ -85,7 +107,12 @@ Version 3.0.0 removed the dedicated `happRouting` field, and this updater no lon
 
 To use the API, create a token under **Remnawave Settings → API Tokens** with `Read/Write` permissions for the *Subscription Settings* section and copy it into your `.env` file.
 
-## 🔧 Environment variables
+</details>
+
+<details>
+<summary><b>🔧 Environment variables</b></summary>
+
+### Environment variables
 
 All parameters live in the `.env` file (created from `.env.example`):
 
@@ -110,7 +137,12 @@ All parameters live in the `.env` file (created from `.env.example`):
 | `STAMP_MODE` | `LastUpdated` bump: `interval` or `on_geo_change` | `interval` |
 | `GEO_TRIM_ENABLED` | Serve only the template's categories (server-side `UseChunkFiles`) | `false` |
 
-## 🚀 Installation and launch
+</details>
+
+<details>
+<summary><b>🚀 Installation and launch</b></summary>
+
+### Installation and launch
 
 The service ships as a prebuilt image on the **GitHub Container Registry**, so there's nothing to clone or build — just grab three files into an empty folder and start it.
 
@@ -161,7 +193,12 @@ docker compose up -d --build
 > 💡 We work with `my-template.json` (not tracked by git) so your edits don't conflict on `git pull`; `template.json` stays as the reference.
 </details>
 
-## ✅ Verifying it works
+</details>
+
+<details>
+<summary><b>✅ Verifying it works</b></summary>
+
+### Verifying it works
 
 On a successful start you'll see lines like these in the logs:
 ```
@@ -173,7 +210,12 @@ The `./output/routing.json` file should appear on disk, and `https://sub.your-do
 
 The container also reports a Docker health status: `docker ps` shows `healthy` once the first cycle completes, and flips to `unhealthy` if the loop stalls for longer than one update interval — handy for `restart: unless-stopped` setups and external monitoring.
 
-## 🗺️ Geo databases (mirror and trimming)
+</details>
+
+<details>
+<summary><b>🗺️ Geo databases — mirror and trimming</b></summary>
+
+### Geo databases (mirror and trimming)
 
 Where GitHub is blocked, you can serve the databases yourself and even shrink them to what your template uses.
 
@@ -218,7 +260,12 @@ for free from the mirror's conditional request (and, with trimming on, from the 
 so you can lower `UPDATE_INTERVAL_SECONDS` to poll more often without re-writing the panel or
 nudging every client each cycle. One interval covers both jobs — no separate poll setting is needed.
 
-## 🌐 Web server (Reverse Proxy) setup
+</details>
+
+<details>
+<summary><b>🌐 Web server (reverse proxy) — Nginx, Angie, Caddy, Traefik</b></summary>
+
+### Web server (Reverse Proxy) setup
 
 **Why is this needed?** INCY's `autorouting` feature periodically downloads `routing.json` from a direct link, and — if you enabled the geo mirror above — clients fetch `geoip.dat` / `geosite.dat` the same way. The script writes all of them into the local `./output` folder; your web server exposes them at public URLs.
 
@@ -242,11 +289,11 @@ curl -I https://sub.your-domain.com/routing.json   # 200, Content-Type: applicat
 curl -I https://sub.your-domain.com/geoip.dat      # 200, Content-Type: application/octet-stream  (mirror only)
 ```
 
-### 🟢 Nginx & 🟣 Angie
+#### 🟢 Nginx & 🟣 Angie
 
 Angie is an Nginx fork, so the same block works for both. Add it to the `server { ... }` that serves your subscription domain, *before* the main `location /`.
 
-#### Option A: proxy on the host (no Docker)
+##### Option A: proxy on the host (no Docker)
 ```nginx
 location = /routing.json {
     alias /opt/remnawave-routing-updater/output/routing.json;
@@ -264,7 +311,7 @@ location ~ ^/(geoip|geosite)\. {
 ```
 *Apply:* `nginx -s reload` (or `angie -s reload`)
 
-#### Option B: proxy running in Docker
+##### Option B: proxy running in Docker
 1. Mount the output folder into the proxy container (its `docker-compose.yml`):
 ```yaml
     volumes:
@@ -291,11 +338,11 @@ location ~ ^/(geoip|geosite)\. {
 
 ---
 
-### 🔵 Caddy
+#### 🔵 Caddy
 
 > ⚠️ **Important:** wrap the file serving in a `handle` block, otherwise `reverse_proxy` intercepts the request.
 
-#### Option A: Caddy on the host (no Docker)
+##### Option A: Caddy on the host (no Docker)
 ```caddyfile
 https://sub.your-domain.com {
     # 1. Serve the static JSON
@@ -322,7 +369,7 @@ https://sub.your-domain.com {
 ```
 *Apply:* `systemctl reload caddy`
 
-#### Option B: Caddy in Docker
+##### Option B: Caddy in Docker
 1. Mount the output folder into the Caddy container:
 ```yaml
     volumes:
@@ -356,7 +403,7 @@ https://sub.your-domain.com {
 
 ---
 
-### 🟠 Traefik
+#### 🟠 Traefik
 
 Traefik is a proxy, not a file server, so run a tiny static-file container on the same `remnawave-network` and route `/routing.json` (and, with the mirror on, the geo databases) to it. The container already mounts the whole `./output` folder, so all three files are available:
 ```yaml
@@ -413,7 +460,12 @@ Match `entryPoints`/`certResolver` to your `traefik.yml`. *Recreate:* `docker co
 
 > If your Traefik instead uses the Docker label provider, drop the YAML above and put equivalent labels on the `routing-file` service: the `routing-json` router (`...rule=…Path(/routing.json)`, `...priority=1000`, `...service=routing-file`, `...loadbalancer.server.port=80`, middleware `routing-nostore`) and — with the mirror on — the `geo-files` router (`...rule=…Path(/geoip.dat)||Path(/geoip.dat.sha256)||Path(/geosite.dat)||Path(/geosite.dat.sha256)`, same service, middleware `geo-cache`).
 
-## 🐞 Troubleshooting
+</details>
+
+<details>
+<summary><b>🐞 Troubleshooting</b></summary>
+
+### Troubleshooting
 
 **Startup / API**
 - **`CRITICAL ERROR: API_TOKEN is not set`** — `API_TOKEN` is empty in `.env`.
@@ -433,6 +485,17 @@ Match `entryPoints`/`certResolver` to your `traefik.yml`. *Recreate:* `docker co
 - **Trimmed `.dat` looks empty / `categories not found in source`** in the logs — the category names in your template don't match the source database. Check the `geosite:`/`geoip:` names in `my-template.json` against the upstream categories.
 - **`geoip`/`geosite` reported `invalid` in the Happ log even though the file isn't broken** (`Geo files validation failed … geoip=invalid (size=240 bytes)`) — trimming down to a single tiny category (e.g. only `geoip:private`, ~240 bytes) produces a file Happ rejects as too small (a guard against truncated/corrupted downloads); the protobuf itself is structurally valid. Fix: keep at least one substantial category in the served file — e.g. add `geoip:google` (~126 KB) or `geoip:cloudflare` (~9 KB) to the relevant IP field of your template. `geoip.dat` then becomes a few hundred KB and passes validation while staying tiny next to the full ~17 MB. (Watch out for small categories: `geoip:telegram`, for instance, is only ~181 bytes and would also fail.)
 
-## 📄 License
+</details>
+
+<details>
+<summary><b>🧪 Development</b></summary>
+
+### Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md): project layout, dev setup and the checks CI runs (`ruff check .`, `pytest -q`). Every push to `master` and every `v*` tag publishes a multi-arch image (`amd64`, `arm64`) to [GHCR](https://github.com/3APA3A-3AHO3A/remnawave-routing-updater/pkgs/container/remnawave-routing-updater).
+
+</details>
+
+## License
 
 Distributed under the MIT License — see the [LICENSE](./LICENSE) file.

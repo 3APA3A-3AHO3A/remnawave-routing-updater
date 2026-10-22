@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="294" viewBox="0 0 1120 294" font-family="-apple-system, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<rect x="1" y="1" width="1118" height="292" rx="16" fill="#151b23" stroke="#30363d" stroke-width="2"/>
+<text x="34" y="50" font-size="15" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace">$ docker logs -f remna-routing-updater</text>
+<text x="34" y="84" font-size="15" fill="#e6edf3" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace">INFO | Service started. Interval: 21600 sec. | … | Happ: on, Incy: on | Geo mirror: on (trimmed), Stamp: on_geo_change</text>
+<text x="34" y="118" font-size="15" fill="#e6edf3" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace">INFO | geosite.dat: unchanged (304)</text>
+<text x="34" y="152" font-size="15" fill="#e6edf3" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace">INFO | geoip.dat: trimmed to 3 categor(y/ies), 412630 bytes (from 17941204).</text>
+<text x="34" y="186" font-size="15" fill="#e6edf3" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace">INFO | File /app/output/routing.json saved successfully.</text>
+<text x="34" y="220" font-size="15" fill="#3fb950" font-family="ui-monospace, SFMono-Regular, Consolas, Menlo, monospace">INFO | Remnawave database updated successfully! Happ: 1 rule(s) updated | Incy: 1 rule(s) updated</text>
+<text x="34" y="266" font-size="17" fill="#9198a1">↳ клиенты Happ и INCY сами скачают свежие geoip/geosite при следующем обновлении подписки</text>
+</svg>

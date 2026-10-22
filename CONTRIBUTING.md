@@ -14,6 +14,11 @@ The code is a Python package under `routing_updater/`, split by responsibility:
 | `templating.py` | Load / stamp / encode / save the routing template |
 | `remnawave.py` | The only code that talks to the Remnawave API |
 | `core.py` | Orchestrates one update cycle |
+| `mirror.py` | Downloads `geoip.dat` / `geosite.dat` to this server (conditional `304`, atomic writes) |
+| `geobuild.py` | Trims the mirrored databases down to the categories the template uses |
+| `checksums.py` | Writes the `.sha256` sidecar Happ checks next to each served database |
+| `state.py` | Remembers the last `LastUpdated` stamp for `STAMP_MODE=on_geo_change` |
+| `healthcheck.py` | Docker `HEALTHCHECK` entry point (stale heartbeat → unhealthy) |
 | `runtime.py` | Signal handling and interruptible sleep |
 | `__main__.py` | Entry point (`python -m routing_updater`) |
 
