@@ -15,8 +15,10 @@ from .config import (
     AUTOROUTING_URL,
     CLEAR_LEGACY_HAPP_ROUTING,
     CREATE_MISSING_RULES,
+    ENABLE_FIXERRORVPN,
     ENABLE_HAPP,
     ENABLE_INCY,
+    FIXERRORVPN_RULE_MATCH,
     GEO_CACHE_DIR,
     GEO_DIR,
     GEO_MIRROR_ENABLED,
@@ -75,17 +77,54 @@ def _sync_client_rules(
     )
 
 
+def _autorouting_headers(routing_link, autorouting_link):
+    """``(kv_pairs, remove_keys)`` for a client that knows ``autorouting``.
+
+    With no autorouting link configured, the header is stripped from existing rules so a
+    stale link does not linger after ``AUTOROUTING_URL`` is cleared.
+    """
+    kv_pairs = [("routing", routing_link)]
+    if autorouting_link:
+        kv_pairs.append(("autorouting", autorouting_link))
+        return kv_pairs, ()
+    return kv_pairs, ("autorouting",)
+
+
+def _sync_fixerrorvpn_rules(data, *, keyword, kv_pairs, remove_keys, note=""):
+    """Refresh FixErrorVPN rules in place. Never creates one — see ENABLE_FIXERRORVPN."""
+    container = data.get("responseRules")
+    existing = container.get("rules", []) if isinstance(container, dict) else []
+    touched = rules.apply_headers_to_matching_rules(
+        existing, keyword, kv_pairs, remove_keys=remove_keys
+    )
+    if touched:
+        return f"FixErrorVPN: {touched} rule(s) updated{note}"
+
+    logger.warning(
+        f"No response rule matching '{keyword}' found — FixErrorVPN routing was not "
+        "delivered. FixErrorVPN rules are never created automatically (they match the "
+        "app's User-Agent and need a response type per core): add them in the panel "
+        "(Subscription Settings -> Response Rules), e.g. 'FixErrorVPN Xray' (XRAY_JSON) and "
+        "'FixErrorVPN Mihomo' (MIHOMO), above the generic Xray/Happ rules — or set "
+        "FIXERRORVPN_RULE_MATCH / ENABLE_FIXERRORVPN=false."
+    )
+    return "FixErrorVPN: no rule found — skipped"
+
+
 def apply_changes(
     data,
     links,
     *,
     enable_happ,
     enable_incy,
+    enable_fixerrorvpn=False,
     incy_autorouting=True,
+    fixerrorvpn_autorouting=True,
     happ_response_type=HAPP_RESPONSE_TYPE,
     incy_response_type=INCY_RESPONSE_TYPE,
     happ_match=HAPP_RULE_MATCH,
     incy_match=INCY_RULE_MATCH,
+    fixerrorvpn_match=FIXERRORVPN_RULE_MATCH,
     create_missing=CREATE_MISSING_RULES,
 ):
     """Mutate the settings ``data`` according to the toggles. Returns a summary list.
@@ -101,6 +140,9 @@ def apply_changes(
     ``incy_autorouting`` (paired with a non-null ``links['incy_autorouting']``) controls
     whether the ``autorouting`` header is written. When no real ``AUTOROUTING_URL`` is
     configured, INCY ships the ``routing`` header alone — no broken autorouting link.
+
+    FixErrorVPN gets the same pair of headers as INCY (``fixerrorvpn://`` scheme), but its
+    rules are only ever updated, never created: ``create_missing`` does not apply to it.
     """
     summary = []
 
@@ -120,13 +162,7 @@ def apply_changes(
 
     if enable_incy:
         autorouting_link = links.get("incy_autorouting") if incy_autorouting else None
-        kv_pairs = [("routing", links["incy_routing"])]
-        remove_keys = ()
-        if autorouting_link:
-            kv_pairs.append(("autorouting", autorouting_link))
-        else:
-            # Not configured — strip any stale autorouting header left on existing rules.
-            remove_keys = ("autorouting",)
+        kv_pairs, remove_keys = _autorouting_headers(links["incy_routing"], autorouting_link)
 
         note = "" if autorouting_link else " (routing only, autorouting skipped)"
         summary.append(
@@ -141,6 +177,20 @@ def apply_changes(
                 create_missing=create_missing,
             )
             + note
+        )
+
+    if enable_fixerrorvpn:
+        autorouting_link = links.get("fixerrorvpn_autorouting") if fixerrorvpn_autorouting else None
+        kv_pairs, remove_keys = _autorouting_headers(links["fixerrorvpn_routing"], autorouting_link)
+        note = "" if autorouting_link else " (routing only, autorouting skipped)"
+        summary.append(
+            _sync_fixerrorvpn_rules(
+                data,
+                keyword=fixerrorvpn_match,
+                kv_pairs=kv_pairs,
+                remove_keys=remove_keys,
+                note=note,
+            )
         )
 
     return summary
@@ -328,7 +378,9 @@ def update_routing(client):
                 links,
                 enable_happ=ENABLE_HAPP,
                 enable_incy=ENABLE_INCY,
+                enable_fixerrorvpn=ENABLE_FIXERRORVPN,
                 incy_autorouting=AUTOROUTING_ENABLED,
+                fixerrorvpn_autorouting=AUTOROUTING_ENABLED,
             )
             extra = legacy_happ_cleanup(data, major)
 

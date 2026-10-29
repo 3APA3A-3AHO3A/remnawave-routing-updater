@@ -55,9 +55,10 @@ def encode_template(template):
 
 
 def build_links(template):
-    """Build the Happ/INCY deep-links from an (already stamped) template.
+    """Build the Happ/INCY/FixErrorVPN deep-links from an (already stamped) template.
 
-    ``incy_autorouting`` is ``None`` when no real ``AUTOROUTING_URL`` is configured,
+    The routing payload is the same Base64 string for every client — only the scheme
+    differs. ``*_autorouting`` is ``None`` when no real ``AUTOROUTING_URL`` is configured,
     so callers skip the autorouting header instead of pointing clients at a placeholder.
     """
     b64 = encode_template(template)
@@ -66,6 +67,10 @@ def build_links(template):
         "incy_routing": f"incy://routing/onadd/{b64}",
         "incy_autorouting": (
             f"incy://autorouting/onadd/{AUTOROUTING_URL}" if AUTOROUTING_ENABLED else None
+        ),
+        "fixerrorvpn_routing": f"fixerrorvpn://routing/onadd/{b64}",
+        "fixerrorvpn_autorouting": (
+            f"fixerrorvpn://autorouting/onadd/{AUTOROUTING_URL}" if AUTOROUTING_ENABLED else None
         ),
     }
 

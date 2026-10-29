@@ -8,6 +8,7 @@ from .config import (
     API_TOKEN,
     AUTOROUTING_ENABLED,
     CREATE_MISSING_RULES,
+    ENABLE_FIXERRORVPN,
     ENABLE_HAPP,
     ENABLE_INCY,
     GEO_MIRROR_ENABLED,
@@ -37,10 +38,10 @@ def main():
         logger.error("CRITICAL ERROR: API_TOKEN is not set in .env!")
         raise SystemExit(1)
 
-    if not ENABLE_HAPP and not ENABLE_INCY:
+    if not ENABLE_HAPP and not ENABLE_INCY and not ENABLE_FIXERRORVPN:
         logger.error(
-            "CRITICAL ERROR: both ENABLE_HAPP and ENABLE_INCY are disabled. "
-            "Enable at least one in .env!"
+            "CRITICAL ERROR: ENABLE_HAPP, ENABLE_INCY and ENABLE_FIXERRORVPN are all "
+            "disabled. Enable at least one in .env!"
         )
         raise SystemExit(1)
 
@@ -50,11 +51,11 @@ def main():
             "Valid values: auto, 2, 3."
         )
 
-    if ENABLE_INCY and not AUTOROUTING_ENABLED:
+    if (ENABLE_INCY or ENABLE_FIXERRORVPN) and not AUTOROUTING_ENABLED:
         logger.warning(
             "AUTOROUTING_URL not set (empty or still example.com) — the autorouting "
-            "header is skipped; INCY will run on the routing header only. Set a real "
-            "link in .env to enable autorouting."
+            "header is skipped; INCY / FixErrorVPN will run on the routing header only. "
+            "Set a real link in .env to enable autorouting."
         )
 
     if not CREATE_MISSING_RULES:
@@ -91,7 +92,8 @@ def main():
     logger.info(
         f"Service started. Interval: {UPDATE_INTERVAL} sec. | API: {PANEL_URL} | "
         f"Panel version: {PANEL_VERSION} | "
-        f"Happ: {'on' if ENABLE_HAPP else 'off'}, Incy: {'on' if ENABLE_INCY else 'off'} | "
+        f"Happ: {'on' if ENABLE_HAPP else 'off'}, Incy: {'on' if ENABLE_INCY else 'off'}, "
+        f"FixErrorVPN: {'on' if ENABLE_FIXERRORVPN else 'off'} | "
         f"Geo mirror: {'on' if GEO_MIRROR_ENABLED else 'off'}"
         f"{' (trimmed)' if GEO_MIRROR_ENABLED and GEO_TRIM_ENABLED else ''}, "
         f"Stamp: {STAMP_MODE}"

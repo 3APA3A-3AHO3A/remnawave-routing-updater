@@ -2,6 +2,21 @@
 
 Версии — по тегам `vX.Y.Z`. Релиз на GitHub собирается из раздела этого файла автоматически, Docker-образ с тем же тегом публикуется в GHCR.
 
+## 2.2.0 — 2026-10-29
+**Третий клиент — Windows-приложение FixErrorVPN.**
+- В правила ответа FixErrorVPN пишутся `routing` = `fixerrorvpn://routing/onadd/<Base64>` (та же строка, что уходит Happ) и `autorouting` = `fixerrorvpn://autorouting/onadd/<AUTOROUTING_URL>` (тот же `routing.json`, что для INCY). Без `AUTOROUTING_URL` — только `routing`, оставшийся `autorouting` удаляется.
+- Правила ищутся по имени: подстрока `fixerrorvpn` без учёта регистра (`FIXERRORVPN_RULE_MATCH`). Обновляются все совпавшие, например `FixErrorVPN Xray` и `FixErrorVPN Mihomo`.
+- **Правила FixErrorVPN не создаются автоматически** — даже при `CREATE_MISSING_RULES=true`: у них условия по User-Agent приложения, их настраивает владелец панели. Правила нет — предупреждение в журнале.
+- Хэдеры самого приложения (`fixerror-logo`, `fixerror-color`, `fixerror-buttons` и прочие), порядок правил, условия, `responseType` и `enabled` не меняются.
+- Новые переменные: `ENABLE_FIXERRORVPN` (по умолчанию `true`), `FIXERRORVPN_RULE_MATCH` (по умолчанию `fixerrorvpn`).
+
+**Обновлено**
+- Базовый образ Docker: `python:3.15-alpine` (было `3.12-alpine`). CI проверяет код на Python 3.12 и 3.15.
+- GitHub Actions: `actions/setup-python` v7.
+
+**При обновлении**
+- Если правил FixErrorVPN в панели нет и приложение не используется — пропишите `ENABLE_FIXERRORVPN=false`, иначе каждый цикл будет предупреждение.
+
 ## 2.1.1 — 2026-10-23
 - **Документация.** README в новом оформлении: баннер, пример журнала, схема работы, справка в сворачиваемых разделах. Главная страница теперь на русском (`README.md`), английская — `README.en.md`. В `CONTRIBUTING.md` дописаны модули mirror, geobuild, checksums, state и healthcheck.
 - **Автоматизация.** Dependabot раз в неделю открывает PR на новые версии `requests`, `python-dotenv`, базового образа и GitHub Actions. Релиз по тегу проверяет, что версия в `pyproject.toml` и `routing_updater/__init__.py` совпадает с тегом, и берёт текст из этого файла.
