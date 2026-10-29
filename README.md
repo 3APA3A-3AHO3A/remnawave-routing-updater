@@ -6,8 +6,8 @@
   <a href="https://github.com/3APA3A-3AHO3A/remnawave-routing-updater/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/3APA3A-3AHO3A/remnawave-routing-updater?label=release&color=1f6feb"></a>
   <a href="https://github.com/3APA3A-3AHO3A/remnawave-routing-updater/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/3APA3A-3AHO3A/remnawave-routing-updater/ci.yml?branch=master&label=CI"></a>
   <a href="https://github.com/remnawave"><img alt="Remnawave" src="https://img.shields.io/badge/Remnawave-2.x%20%7C%203.x-0e8a9e"></a>
-  <img alt="clients" src="https://img.shields.io/badge/clients-Happ%20%C2%B7%20INCY-8957e5">
-  <img alt="Python" src="https://img.shields.io/badge/python-3.12-3776ab">
+  <img alt="clients" src="https://img.shields.io/badge/clients-Happ%20%C2%B7%20INCY%20%C2%B7%20FixErrorVPN-8957e5">
+  <img alt="Python" src="https://img.shields.io/badge/python-3.12%20%7C%203.15-3776ab">
   <a href="https://github.com/3APA3A-3AHO3A/remnawave-routing-updater/pkgs/container/remnawave-routing-updater"><img alt="docker" src="https://img.shields.io/badge/docker-ghcr.io%20%C2%B7%20amd64%20%7C%20arm64-1f6feb"></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/github/license/3APA3A-3AHO3A/remnawave-routing-updater?color=6e7681"></a>
 </p>
@@ -16,7 +16,7 @@
   <a href="#установка-и-запуск">🚀 Установка</a> &nbsp;·&nbsp; <a href="#переменные-окружения">⚙️ Настройки</a> &nbsp;·&nbsp; <a href="#гео-базы-зеркало-и-обрезка">🗺️ Зеркало баз</a> &nbsp;·&nbsp; <a href="#настройка-веб-сервера-reverse-proxy">🌐 Reverse proxy</a> &nbsp;·&nbsp; <a href="#решение-проблем">🐞 Проблемы</a> &nbsp;·&nbsp; <a href="README.en.md">🇬🇧 English</a>
 </p>
 
-Автономный микросервис на Python + Docker для автоматического обновления баз роутинга (`geoip`, `geosite`) для клиентов **Happ** и **INCY** в панели управления [Remnawave](https://github.com/remnawave).
+Автономный микросервис на Python + Docker для автоматического обновления баз роутинга (`geoip`, `geosite`) для клиентов **Happ**, **INCY** и **FixErrorVPN** (Windows) в панели управления [Remnawave](https://github.com/remnawave).
 
 Скрипт использует **официальный API Remnawave** для обновления настроек подписки, что делает его максимально безопасным (никаких доступов к базе данных напрямую!). Логирование автоматически ротируется встроенными средствами Docker.
 
@@ -24,7 +24,7 @@
 > **Быстрый старт.** Ничего не нужно клонировать и собирать: скачайте три файла (`docker-compose.yml`, `.env`, `my-template.json`), впишите API-токен в `.env` и запустите `docker compose up -d`. По шагам — [Установка и запуск](#установка-и-запуск).
 
 > [!IMPORTANT]
-> **Что меняется в панели.** Только заголовки `routing` / `autorouting` в правилах ответа Happ и INCY (недостающее правило создаётся над вашим правилом по умолчанию). Ничего не удаляется, не выключается и не переставляется.
+> **Что меняется в панели.** Только заголовки `routing` / `autorouting` в правилах ответа Happ, INCY и FixErrorVPN (недостающее правило Happ / INCY создаётся над вашим правилом по умолчанию; правила FixErrorVPN не создаются никогда). Ничего не удаляется, не выключается и не переставляется.
 
 ## Как это выглядит
 
@@ -44,8 +44,9 @@
 - Работает на **Remnawave 2.x и 3.x** одним и тем же образом — единственный API, в который пишет апдейтер (Правила ответов), одинаков в обеих мажорных версиях.
 - **Happ и INCY поддерживаются «из коробки»** и обрабатываются одним и тем же кодом — на одну настройку меньше, и негде ошибиться.
 - Ссылка на роутинг попадает в соответствующее **Правило ответа** и больше никуда. Кастомные хедеры подписки и прочие хедеры внутри правила не трогаются.
-- Правила нет? Оно **создаётся автоматически** для любого из клиентов, прямо над вашим catch-all правилом — ручная настройка в панели необязательна.
-- Генерирует `routing.json` для функции `autorouting` у INCY и на старте проверяет, что ваш reverse proxy его действительно отдаёт.
+- **FixErrorVPN (Windows-приложение)** получает те же `routing` и `autorouting` со своей приставкой `fixerrorvpn://` — в своих правилах, которые вы создаёте сами.
+- Правила нет? Для Happ и INCY оно **создаётся автоматически**, прямо над вашим catch-all правилом — ручная настройка в панели необязательна.
+- Генерирует `routing.json` для функции `autorouting` у INCY и FixErrorVPN и на старте проверяет, что ваш reverse proxy его действительно отдаёт.
 
 **Гео-базы (`geoip` / `geosite`)**
 - По умолчанию ничего не хранит и не качает — лишь «пинает» клиентов подтянуть свежие базы по ссылкам из шаблона.
@@ -62,7 +63,7 @@
 flowchart LR
     U["<b>routing-updater</b><br/>раз в 6 ч"] -- "официальный API<br/>Response Rules" --> P["Панель Remnawave"]
     U -- "routing.json<br/>geoip / geosite (по желанию)" --> W["Ваш веб-сервер<br/>Nginx · Angie · Caddy · Traefik"]
-    P -- "подписка<br/>заголовок routing" --> C["Клиенты Happ / INCY"]
+    P -- "подписка<br/>заголовок routing" --> C["Клиенты Happ / INCY / FixErrorVPN"]
     C -- "свежие geoip / geosite" --> G["GitHub<br/>или ваше зеркало"]
     C -. "autorouting" .-> W
 ```
@@ -78,22 +79,31 @@ flowchart LR
 ## Документация
 
 <details>
-<summary><b>⚙️ Поддержка клиентов — Happ, INCY, версия панели</b></summary>
+<summary><b>⚙️ Поддержка клиентов — Happ, INCY, FixErrorVPN, версия панели</b></summary>
 
 ### Поддержка клиентов
 
 Каждый тип клиента управляется своим тумблером в `.env` — включаете только то, что нужно.
 
-Оба клиента обрабатываются одинаково — единственное отличие в том, что у INCY дополнительно есть `autorouting`, аналога которому у Happ нет. Ссылка на роутинг пишется в хэдер `routing` внутри собственного **Правила ответа** клиента и больше никуда.
+Все клиенты обрабатываются одинаково: ссылка на роутинг пишется в хэдер `routing` внутри собственного **Правила ответа** клиента и больше никуда. У INCY и FixErrorVPN дополнительно есть `autorouting`, аналога которому у Happ нет. Строка роутинга (Base64) у всех одна и та же — отличается только приставка: `happ://`, `incy://`, `fixerrorvpn://`.
 
 **Happ (`ENABLE_HAPP`) и INCY (`ENABLE_INCY`), оба включены по умолчанию.** Для каждого включённого клиента скрипт обновляет хэдер `routing` у всех правил, в имени которых встречается `Happ` / `Incy` (без учёта регистра), а если такого правила нет — создаёт его. Оставленная включённой поддержка клиента, которым у вас никто не пользуется, стоит одного правила ответа и нуля запросов, так что выключать обычно незачем.
 
-**Autorouting у INCY.** Задайте `AUTOROUTING_URL`, указывающий на ваш раздаваемый `routing.json` (см. раздел про reverse proxy ниже). Он необязателен: без него INCY работает только на хэдере `routing`, а сам `autorouting` не добавляется вообще — и протухший хэдер, оставшийся на существующем правиле, удаляется. На первом цикле сервис сам запрашивает этот URL и пишет в лог, действительно ли ваш reverse proxy отдаёт только что записанный файл.
+**FixErrorVPN (`ENABLE_FIXERRORVPN`), включён по умолчанию.** Windows-приложение FixErrorVPN приходит за подпиской с User-Agent `Xray-core/<версия> FixErrorVPN/<версия> (...)` или `mihomo/<версия> FixErrorVPN/<версия> (...)`. Скрипт обновляет у всех правил, в имени которых встречается `FixErrorVPN` (без учёта регистра, подстрока задаётся `FIXERRORVPN_RULE_MATCH`), два хэдера:
+
+- `routing` = `fixerrorvpn://routing/onadd/<Base64>` — тот же JSON, что уходит Happ (`Geoipurl`, `Geositeurl`, `LastUpdated` и т.д.);
+- `autorouting` = `fixerrorvpn://autorouting/onadd/<AUTOROUTING_URL>` — тот же `routing.json`, что и для INCY. Без `AUTOROUTING_URL` хэдер не пишется, а оставшийся старый удаляется.
+
+Приложение сравнивает `LastUpdated` и адреса баз: если что-то изменилось, оно в фоне перекачивает `geoip` / `geosite` и применяет их при следующем подключении.
+
+**Правила FixErrorVPN скрипт не создаёт никогда** — даже при `CREATE_MISSING_RULES=true`. Им нужны условия по User-Agent приложения и свой `responseType` для каждого ядра, а это решает владелец панели. Создайте их сами, например `FixErrorVPN Xray` (`XRAY_JSON`, условие `user-agent` содержит `FixErrorVPN` и `Xray-core`) и `FixErrorVPN Mihomo` (`MIHOMO`, `user-agent` содержит `FixErrorVPN` и `mihomo`), и поставьте **выше** общих правил `Xray` и `Happ` — иначе приложение попадёт в общее правило и заголовок `routing` с приставкой `fixerrorvpn://` до него не дойдёт. Нет ни одного подходящего правила — в логе будет предупреждение, остальные правила не трогаются. Хэдеры самого приложения в этих правилах (`fixerror-logo`, `fixerror-color`, `fixerror-buttons` и прочие) не меняются.
+
+**Autorouting у INCY и FixErrorVPN.** Задайте `AUTOROUTING_URL`, указывающий на ваш раздаваемый `routing.json` (см. раздел про reverse proxy ниже). Он необязателен: без него INCY и FixErrorVPN работают только на хэдере `routing`, а сам `autorouting` не добавляется вообще — и протухший хэдер, оставшийся на существующем правиле, удаляется. На первом цикле сервис сам запрашивает этот URL и пишет в лог, действительно ли ваш reverse proxy отдаёт только что записанный файл.
 
 #### Что апдейтер делает с вашими правилами и чего не делает
 
 - Правила проверяются **сверху вниз, срабатывает первое совпавшее**, а запрос, не совпавший ни с одним, получает `403`. Поэтому созданное правило вставляется **прямо над вашим catch-all правилом** (тем, что без условий — Remnawave сидит его как `Fallback Base64`): добавленное в конец списка оно бы никогда не сработало.
-- Созданное правило **наследует `responseType` у catch-all**, так что ваши пользователи Happ/INCY продолжат получать ровно тот же формат подписки, что и сейчас; меняется только добавленный хэдер. Переопределяется через `HAPP_RESPONSE_TYPE` / `INCY_RESPONSE_TYPE`, а `CREATE_MISSING_RULES=false` заменяет создание правила предупреждением в логе.
+- Созданное правило (Happ / INCY) **наследует `responseType` у catch-all**, так что ваши пользователи Happ/INCY продолжат получать ровно тот же формат подписки, что и сейчас; меняется только добавленный хэдер. Переопределяется через `HAPP_RESPONSE_TYPE` / `INCY_RESPONSE_TYPE`, а `CREATE_MISSING_RULES=false` заменяет создание правила предупреждением в логе.
 - У уже существующих правил не трогаются ни `responseType`, ни `conditions`, ни флаг `enabled`, ни позиция в списке, ни любые хэдеры, которыми апдейтер не управляет (`support-email`, `announce-url` и прочие).
 - Ничего никогда не удаляется, не выключается и не переставляется местами, и ничего за пределами `responseRules` не пишется.
 
@@ -123,11 +133,12 @@ flowchart LR
 | `PANEL_VERSION` | Мажорная версия панели: `auto`, `2` или `3` | `auto` |
 | `ENABLE_HAPP` | Включить поддержку Happ (обновляет или создаёт правило Happ) | `true` |
 | `ENABLE_INCY` | Включить поддержку INCY (обновляет или создаёт правило Incy) | `true` |
-| `HAPP_RULE_MATCH` / `INCY_RULE_MATCH` | Подстрока для поиска правила клиента по имени | `happ` / `incy` |
-| `CREATE_MISSING_RULES` | Создавать правило над catch-all, если подходящего нет | `true` |
+| `ENABLE_FIXERRORVPN` | Включить поддержку Windows-приложения FixErrorVPN (только обновляет его правила, не создаёт) | `true` |
+| `HAPP_RULE_MATCH` / `INCY_RULE_MATCH` / `FIXERRORVPN_RULE_MATCH` | Подстрока для поиска правила клиента по имени (без учёта регистра) | `happ` / `incy` / `fixerrorvpn` |
+| `CREATE_MISSING_RULES` | Создавать правило Happ / INCY над catch-all, если подходящего нет (на FixErrorVPN не влияет) | `true` |
 | `HAPP_RESPONSE_TYPE` / `INCY_RESPONSE_TYPE` | `responseType` только для автосоздаваемых правил; пусто = унаследовать у catch-all | — (наследуется) |
 | `CLEAR_LEGACY_HAPP_ROUTING` | Только панель 2.x: обнулить legacy-поле `happRouting` | `false` |
-| `AUTOROUTING_URL` | Ссылка, по которой веб-сервер отдаёт `routing.json` (опционально; включает `autorouting` у INCY — без неё только `routing`) | — (не задан) |
+| `AUTOROUTING_URL` | Ссылка, по которой веб-сервер отдаёт `routing.json` (опционально; включает `autorouting` у INCY и FixErrorVPN — без неё только `routing`) | — (не задан) |
 | `UPDATE_INTERVAL_SECONDS` | Интервал обновления в секундах | `21600` (6 часов) |
 | `REQUEST_TIMEOUT_SECONDS` | Таймаут HTTP-запросов к API | `30` |
 | `RETRY_ATTEMPTS` | Число попыток при сетевой ошибке | `3` |
@@ -158,7 +169,7 @@ flowchart LR
    ```bash
    nano .env
    ```
-   *Вставьте ваш `API_TOKEN`, укажите `PANEL_URL` и включите нужных клиентов (`ENABLE_HAPP` / `ENABLE_INCY`). Для INCY также задайте `AUTOROUTING_URL`.*
+   *Вставьте ваш `API_TOKEN`, укажите `PANEL_URL` и включите нужных клиентов (`ENABLE_HAPP` / `ENABLE_INCY` / `ENABLE_FIXERRORVPN`). Для INCY и FixErrorVPN также задайте `AUTOROUTING_URL`.*
 
 3. Отредактируйте свой шаблон роутинга `my-template.json`:
    ```bash
@@ -202,7 +213,7 @@ docker compose up -d --build
 
 В логах при успешном запуске вы увидите строки вида (сообщения выводятся на английском):
 ```
-Service started. Interval: 21600 sec. | API: https://panel.your-domain.com | Happ: on, Incy: off | Geo mirror: off, Stamp: interval
+Service started. Interval: 21600 sec. | API: https://panel.your-domain.com | Happ: on, Incy: off, FixErrorVPN: off | Geo mirror: off, Stamp: interval
 File /app/output/routing.json saved successfully.
 ✅ Remnawave database updated successfully! Happ: field set, 1 rule(s) updated
 ```
@@ -266,7 +277,7 @@ GEOSITE_URL=https://sub.your-domain.com/geosite.dat
 
 ### Настройка веб-сервера (Reverse Proxy)
 
-**Зачем это нужно?** Функция `autorouting` в клиенте INCY периодически скачивает `routing.json` по прямой ссылке, а — если включено зеркало выше — клиенты так же качают `geoip.dat` / `geosite.dat`. Скрипт пишет все эти файлы в локальную папку `./output`; ваш веб-сервер отдаёт их по публичным адресам.
+**Зачем это нужно?** Функция `autorouting` в клиентах INCY и FixErrorVPN периодически скачивает `routing.json` по прямой ссылке, а — если включено зеркало выше — клиенты так же качают `geoip.dat` / `geosite.dat`. Скрипт пишет все эти файлы в локальную папку `./output`; ваш веб-сервер отдаёт их по публичным адресам.
 
 Отдавайте их с **домена вашей подписки** — клиент и так обновляет подписку по этому домену, значит эти файлы логично держать на том же хосте. В примерах используются `https://sub.your-domain.com/routing.json`, `…/geoip.dat` и `…/geosite.dat`.
 
@@ -468,11 +479,12 @@ http:
 
 **Запуск / API**
 - **`CRITICAL ERROR: API_TOKEN is not set`** — не заполнен `API_TOKEN` в `.env`.
-- **`CRITICAL ERROR: both ENABLE_HAPP and ENABLE_INCY are disabled`** — включите хотя бы одного клиента.
+- **`CRITICAL ERROR: ENABLE_HAPP, ENABLE_INCY and ENABLE_FIXERRORVPN are all disabled`** — включите хотя бы одного клиента.
+- **`No response rule matching 'fixerrorvpn' found — FixErrorVPN routing was not delivered`** — в панели нет правила FixErrorVPN. Скрипт его не создаёт: добавьте правила с условием по User-Agent приложения выше общих `Xray` / `Happ` (см. [Поддержка клиентов](#поддержка-клиентов)) либо выключите `ENABLE_FIXERRORVPN=false`, если приложение у вас не используется.
 - **`AUTOROUTING_URL check: ... returned HTTP 404`** — reverse proxy не отдаёт `routing.json`. Сверьте блок `location` с томом, в который пишет этот контейнер; URL в `.env` должен в точности совпадать с публичным, включая `https://`.
 - **`AUTOROUTING_URL check: ... serves a different/older file`** — прокси смотрит не в ту директорию, в которую пишет контейнер. Проверьте маппинг томов с обеих сторон.
 - **В логе успех, но клиенты Happ/INCY не получают профиль роутинга** — откройте *Настройки подписки → Правила ответов* и проверьте порядок правил. Правила проверяются сверху вниз, срабатывает первое совпавшее, поэтому правило, стоящее ниже безусловного `Fallback Base64`, не сработает никогда. Поднимите его выше.
-- **`AUTOROUTING_URL not set … autorouting header is skipped`** — это не ошибка: INCY работает только на хэдере `routing`. Задайте реальную ссылку в `.env`, чтобы включить функцию `autorouting`.
+- **`AUTOROUTING_URL not set … autorouting header is skipped`** — это не ошибка: INCY и FixErrorVPN работают только на хэдере `routing`. Задайте реальную ссылку в `.env`, чтобы включить функцию `autorouting`.
 - **`API error: 'response' object not found`** — неверный `PANEL_URL` или токен без прав `Subscription Template: Read/Write`.
 
 **Правки конфига не применяются** — после изменения `.env` или `my-template.json` пересоздайте контейнер: `docker compose up -d --force-recreate`. Если образ устарел, сначала подтяните свежий: `docker compose pull && docker compose up -d`. (Собираете из исходников? Пересоберите: `docker compose up -d --build`.)
