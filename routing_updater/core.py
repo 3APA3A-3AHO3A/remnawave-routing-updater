@@ -5,6 +5,7 @@ keeps the toggle logic unit-testable. ``update_routing`` adds the I/O around it:
 load the template, save the file, talk to the API, retry on network errors.
 """
 
+import copy
 import time
 
 import requests
@@ -25,6 +26,7 @@ from .config import (
     GEO_TRIM_ENABLED,
     GEOIP_URL,
     GEOSITE_URL,
+    HAPP_EXTRA_RULES,
     HAPP_RESPONSE_TYPE,
     HAPP_RULE_MATCH,
     INCY_RESPONSE_TYPE,
@@ -125,6 +127,7 @@ def apply_changes(
     happ_match=HAPP_RULE_MATCH,
     incy_match=INCY_RULE_MATCH,
     fixerrorvpn_match=FIXERRORVPN_RULE_MATCH,
+    happ_extra_rules=HAPP_EXTRA_RULES,
     create_missing=CREATE_MISSING_RULES,
 ):
     """Mutate the settings ``data`` according to the toggles. Returns a summary list.
@@ -143,22 +146,39 @@ def apply_changes(
 
     FixErrorVPN gets the same pair of headers as INCY (``fixerrorvpn://`` scheme), but its
     rules are only ever updated, never created: ``create_missing`` does not apply to it.
+
+    ``happ_extra_rules`` are full rule names (e.g. a generic ``Xray`` rule) that get the
+    same Happ ``routing`` header. They are updated only, never created, and they do not
+    count as "the Happ rule exists" — a missing Happ rule is still created as usual.
     """
     summary = []
 
     if enable_happ:
-        summary.append(
-            _sync_client_rules(
-                data,
-                keyword=happ_match,
-                rule_name="Happ",
-                user_agent="Happ",
-                kv_pairs=[("routing", links["happ_routing"])],
-                remove_keys=(),
-                response_type=happ_response_type,
-                create_missing=create_missing,
-            )
+        happ_pairs = [("routing", links["happ_routing"])]
+        result = _sync_client_rules(
+            data,
+            keyword=happ_match,
+            rule_name="Happ",
+            user_agent="Happ",
+            kv_pairs=happ_pairs,
+            remove_keys=(),
+            response_type=happ_response_type,
+            create_missing=create_missing,
         )
+        if happ_extra_rules:
+            container = data.get("responseRules")
+            existing = container.get("rules", []) if isinstance(container, dict) else []
+            extra = rules.apply_headers_to_named_rules(
+                existing, happ_extra_rules, happ_pairs, skip_keyword=happ_match
+            )
+            if extra:
+                result += f" + {', '.join(map(str, extra))}"
+            else:
+                logger.warning(
+                    f"HAPP_EXTRA_RULES: no rule named {', '.join(happ_extra_rules)} found "
+                    "(exact name, case-insensitive) — nothing extra was updated."
+                )
+        summary.append(result)
 
     if enable_incy:
         autorouting_link = links.get("incy_autorouting") if incy_autorouting else None
@@ -357,12 +377,6 @@ def update_routing(client):
 
     links = templating.build_links(template)
 
-    if not must_patch:
-        logger.info("Geo database unchanged — panel left untouched.")
-        if on_change:
-            state.save_state(new_state)
-        return
-
     for attempt in range(1, RETRY_ATTEMPTS + 1):
         try:
             data = client.get_settings()
@@ -373,6 +387,7 @@ def update_routing(client):
             major = resolve_major_version(data)
             logger.info(f"Panel API detected as v{major}.x" if major else "Panel version unknown")
 
+            before = copy.deepcopy(data.get("responseRules"))
             summary = apply_changes(
                 data,
                 links,
@@ -383,6 +398,22 @@ def update_routing(client):
                 fixerrorvpn_autorouting=AUTOROUTING_ENABLED,
             )
             extra = legacy_happ_cleanup(data, major)
+
+            if not must_patch:
+                # Geo database unchanged, so LastUpdated stays as it was. The panel is still
+                # checked against what it should carry: a newly enabled client, a rule added
+                # in the panel or a header removed by hand is fixed now, not at the next
+                # database update — and clients are not told to re-download anything.
+                if not extra and data.get("responseRules") == before:
+                    logger.info("Geo database unchanged — panel already up to date.")
+                    if on_change:
+                        new_state["applied"] = True
+                        state.save_state(new_state)
+                    return
+                logger.info(
+                    "Geo database unchanged, but the panel's rules differ from what they "
+                    "should be — re-syncing them (LastUpdated kept)."
+                )
 
             client.patch_settings(remnawave.build_patch_payload(data, extra))
             if on_change:

@@ -21,6 +21,17 @@ def rule_matches(rule, keyword):
     return keyword in (rule.get("name") or "").lower()
 
 
+def rule_named(rule, names):
+    """True if the rule's name equals one of ``names`` exactly (case-insensitive, trimmed).
+
+    Used for extra rules picked by their full name: a substring would be too greedy
+    (``xray`` also hits ``FixErrorVPN Xray``).
+    """
+    if not isinstance(rule, dict) or not names:
+        return False
+    return (rule.get("name") or "").strip().lower() in names
+
+
 def upsert_header(headers, key, value):
     """Update a header value by key, or append it if the key is missing.
 
@@ -59,29 +70,50 @@ def apply_headers_to_matching_rules(rules, keyword, kv_pairs, remove_keys=()):
     for rule in rules:
         if not rule_matches(rule, keyword):
             continue
-
-        modifications = rule.get("responseModifications")
-        if not isinstance(modifications, dict):
-            modifications = {}
-            rule["responseModifications"] = modifications
-
-        headers = modifications.get("headers")
-        if not isinstance(headers, list):
-            headers = []
-            modifications["headers"] = headers
-
-        for key, value in kv_pairs:
-            upsert_header(headers, key, value)
-        for key in remove_keys:
-            remove_header(headers, key)
-
-        if rule.get("enabled") is False:
-            logger.warning(
-                f"Rule '{rule.get('name')}' is disabled in the panel — headers were "
-                "refreshed, but the panel will not apply them until you enable it."
-            )
+        _apply_to_rule(rule, kv_pairs, remove_keys)
         count += 1
     return count
+
+
+def apply_headers_to_named_rules(rules, names, kv_pairs, skip_keyword=None):
+    """Like ``apply_headers_to_matching_rules``, but for rules picked by exact name.
+
+    Rules that already match ``skip_keyword`` are skipped, so a rule is never counted
+    (or written) twice. Returns the names of the rules that were updated.
+    """
+    updated = []
+    for rule in rules:
+        if not rule_named(rule, names):
+            continue
+        if skip_keyword and rule_matches(rule, skip_keyword):
+            continue
+        _apply_to_rule(rule, kv_pairs, ())
+        updated.append(rule.get("name"))
+    return updated
+
+
+def _apply_to_rule(rule, kv_pairs, remove_keys):
+    """Upsert ``kv_pairs`` / strip ``remove_keys`` in one rule; nothing else is touched."""
+    modifications = rule.get("responseModifications")
+    if not isinstance(modifications, dict):
+        modifications = {}
+        rule["responseModifications"] = modifications
+
+    headers = modifications.get("headers")
+    if not isinstance(headers, list):
+        headers = []
+        modifications["headers"] = headers
+
+    for key, value in kv_pairs:
+        upsert_header(headers, key, value)
+    for key in remove_keys:
+        remove_header(headers, key)
+
+    if rule.get("enabled") is False:
+        logger.warning(
+            f"Rule '{rule.get('name')}' is disabled in the panel — headers were "
+            "refreshed, but the panel will not apply them until you enable it."
+        )
 
 
 def ensure_rules_config(data):

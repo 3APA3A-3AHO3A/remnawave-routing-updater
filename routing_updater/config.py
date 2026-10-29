@@ -71,6 +71,14 @@ HAPP_RULE_MATCH = os.getenv("HAPP_RULE_MATCH", "happ").strip().lower()
 INCY_RULE_MATCH = os.getenv("INCY_RULE_MATCH", "incy").strip().lower()
 FIXERRORVPN_RULE_MATCH = os.getenv("FIXERRORVPN_RULE_MATCH", "fixerrorvpn").strip().lower()
 
+# Extra rules that should carry the Happ ``routing`` header too, picked by their FULL name
+# (comma-separated, case-insensitive), e.g. a generic "Xray" rule serving every Xray-based
+# client. Exact names on purpose: the substring "xray" would also hit "FixErrorVPN Xray".
+# These rules are only ever updated, never created.
+HAPP_EXTRA_RULES = tuple(
+    name.strip().lower() for name in os.getenv("HAPP_EXTRA_RULES", "").split(",") if name.strip()
+)
+
 # When no matching rule exists at all, create a default one. Turn off if you would
 # rather get a warning and add the rule yourself in the panel.
 CREATE_MISSING_RULES = _as_bool(os.getenv("CREATE_MISSING_RULES"), default=True)
