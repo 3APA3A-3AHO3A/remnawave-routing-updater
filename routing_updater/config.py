@@ -47,21 +47,29 @@ REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT_SECONDS", 30))
 RETRY_ATTEMPTS = int(os.getenv("RETRY_ATTEMPTS", 3))
 
 # ---- Client support toggles ----
-# Both clients are handled identically: the routing link goes into the headers of the
+# All clients are handled the same way: the routing link goes into the headers of the
 # matching Response Rule (SRR) and nowhere else. Nothing outside ``responseRules`` is
 # touched — subscription settings, custom response headers, and every other header
 # already present inside a rule are left exactly as the panel has them.
 #
-# Both default to on. Supporting a client the operator has no users on costs one extra
+# All default to on. Supporting a client the operator has no users on costs one extra
 # response rule and zero requests, while an operator who *does* have such users gets
 # working routing without reading the docs first.
 ENABLE_HAPP = _as_bool(os.getenv("ENABLE_HAPP"), default=True)
 ENABLE_INCY = _as_bool(os.getenv("ENABLE_INCY"), default=True)
 
+# FixErrorVPN (Windows app) understands both the Happ-style ``routing`` header and the
+# INCY-style ``autorouting`` header, with its own ``fixerrorvpn://`` scheme. Unlike Happ
+# and INCY its rules are NEVER auto-created: they match on the app's own User-Agent
+# ("Xray-core/... FixErrorVPN/..." / "mihomo/... FixErrorVPN/...") and pick a response
+# type per core, which only the panel owner can set up. No matching rule -> a warning.
+ENABLE_FIXERRORVPN = _as_bool(os.getenv("ENABLE_FIXERRORVPN"), default=True)
+
 # Substring used to find each client's rule (case-insensitive match on the rule name).
 # Override if your rules are named something else, e.g. "Happ clients".
 HAPP_RULE_MATCH = os.getenv("HAPP_RULE_MATCH", "happ").strip().lower()
 INCY_RULE_MATCH = os.getenv("INCY_RULE_MATCH", "incy").strip().lower()
+FIXERRORVPN_RULE_MATCH = os.getenv("FIXERRORVPN_RULE_MATCH", "fixerrorvpn").strip().lower()
 
 # When no matching rule exists at all, create a default one. Turn off if you would
 # rather get a warning and add the rule yourself in the panel.

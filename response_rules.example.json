@@ -1,7 +1,39 @@
 {
   "version": "1",
   "rules": [
-      {
+    {
+      "name": "FixErrorVPN Xray",
+      "enabled": true,
+      "operator": "AND",
+      "conditions": [
+        {
+          "headerName": "user-agent",
+          "operator": "CONTAINS",
+          "value": "FixErrorVPN",
+          "caseSensitive": false
+        },
+        {
+          "headerName": "user-agent",
+          "operator": "CONTAINS",
+          "value": "Xray-core",
+          "caseSensitive": false
+        }
+      ],
+      "responseType": "XRAY_JSON",
+      "responseModifications": {
+        "headers": [
+          {
+            "key": "routing",
+            "value": "fixerrorvpn://routing/onadd/BASE64"
+          },
+          {
+            "key": "autorouting",
+            "value": "fixerrorvpn://autorouting/onadd/https://panel.your-domain.com/routing.json"
+          }
+        ]
+      }
+    },
+    {
       "name": "Happ",
       "enabled": true,
       "operator": "AND",

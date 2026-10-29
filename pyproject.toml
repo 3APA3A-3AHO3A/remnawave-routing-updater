@@ -1,7 +1,7 @@
 [project]
 name = "remnawave-routing-updater"
-version = "2.1.1"
-description = "Automatically keeps geoip/geosite routing fresh for Happ & INCY clients in Remnawave."
+version = "2.2.0"
+description = "Automatically keeps geoip/geosite routing fresh for Happ, INCY & FixErrorVPN clients in Remnawave."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
