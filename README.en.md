@@ -98,6 +98,8 @@ The app compares `LastUpdated` and the database URLs: when something changed, it
 
 **The script never creates FixErrorVPN rules** — not even with `CREATE_MISSING_RULES=true`. They need conditions on the app's User-Agent and a `responseType` per core, which is the panel owner's call. Create them yourself, e.g. `FixErrorVPN Xray` (`XRAY_JSON`, `user-agent` contains `FixErrorVPN` and `Xray-core`) and `FixErrorVPN Mihomo` (`MIHOMO`, `user-agent` contains `FixErrorVPN` and `mihomo`), and place them **above** the generic `Xray` and `Happ` rules — otherwise the app matches a generic rule and the `fixerrorvpn://` routing header never reaches it. With no matching rule at all you get a warning in the log and every other rule is left alone. The app's own headers in those rules (`fixerror-logo`, `fixerror-color`, `fixerror-buttons`, etc.) are never changed.
 
+**Other rules with the Happ routing (`HAPP_EXTRA_RULES`).** If another rule needs the Happ routing too — e.g. a generic `Xray` rule for every Xray-based client — list the **full** rule names, comma-separated: `HAPP_EXTRA_RULES=Xray`. The whole name is compared (case-insensitive), so `Xray` does not hit `FixErrorVPN Xray`. These rules are only ever updated, never created; if no rule has that name you get a warning in the log.
+
 **INCY and FixErrorVPN autorouting.** Set `AUTOROUTING_URL` to your served `routing.json` (see the reverse proxy section below). It is optional: leave it unset and INCY and FixErrorVPN run on the `routing` header alone — the `autorouting` header is not written at all rather than pointing clients at a placeholder, and a stale one left on an existing rule is removed. On the first cycle the service fetches that URL and logs whether your reverse proxy actually serves the file it just wrote.
 
 #### What the updater will and will not do to your rules
@@ -135,6 +137,7 @@ All parameters live in the `.env` file (created from `.env.example`):
 | `ENABLE_INCY` | Enable INCY support (updates or creates the Incy rule) | `true` |
 | `ENABLE_FIXERRORVPN` | Enable support for the FixErrorVPN Windows app (only updates its rules, never creates them) | `true` |
 | `HAPP_RULE_MATCH` / `INCY_RULE_MATCH` / `FIXERRORVPN_RULE_MATCH` | Substring used to find each client's rule by name (case-insensitive) | `happ` / `incy` / `fixerrorvpn` |
+| `HAPP_EXTRA_RULES` | Full names of other rules, comma-separated, that also get the Happ `routing` header (e.g. a generic `Xray`); update only | — |
 | `CREATE_MISSING_RULES` | Create a Happ / INCY rule above the catch-all when none matches (does not apply to FixErrorVPN) | `true` |
 | `HAPP_RESPONSE_TYPE` / `INCY_RESPONSE_TYPE` | `responseType` for auto-created rules only; empty = inherit from the catch-all | — (inherit) |
 | `CLEAR_LEGACY_HAPP_ROUTING` | Panel 2.x only: null out the legacy `happRouting` field | `false` |
@@ -270,6 +273,9 @@ panel is patched) **only when the served database actually changed**. That chang
 for free from the mirror's conditional request (and, with trimming on, from the trimmed output),
 so you can lower `UPDATE_INTERVAL_SECONDS` to poll more often without re-writing the panel or
 nudging every client each cycle. One interval covers both jobs — no separate poll setting is needed.
+The panel is still checked every cycle against what it should carry: a newly enabled client, a
+newly added rule or a header someone removed by hand is filled in right away, with the same
+`LastUpdated` stamp — clients re-download nothing. When everything matches, the panel is left alone.
 
 </details>
 
