@@ -5,6 +5,7 @@ They live together because they all revolve around the same template document.
 """
 
 import base64
+import hashlib
 import json
 import os
 import time
@@ -102,17 +103,40 @@ def _with_version(url, stamp):
     return f"{url}{'&' if '?' in url else '?'}v={stamp}"
 
 
+_BASE36 = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+
+def v2run_profile_id(name):
+    """A stable profile ``id`` derived from the profile name (13 chars, ``[0-9a-z]``).
+
+    v2run refuses a profile without ``id`` ("not a routing profile") and uses it to tell
+    profiles apart: the same id on every update means the app refreshes the profile it
+    already has instead of adding a new one. Deriving it from the name keeps it identical
+    across cycles and restarts without storing anything; the shape matches the app's own
+    ids (e.g. ``16n5gh5yi2wlu``).
+    """
+    number = int.from_bytes(hashlib.sha256(name.encode("utf-8")).digest()[:9], "big")
+    chars = []
+    for _ in range(13):
+        number, digit = divmod(number, 36)
+        chars.append(_BASE36[digit])
+    return "".join(chars)
+
+
 def to_v2run_profile(template):
     """Convert the Happ-style template into a v2run routing profile (pure).
 
     Same rules, DNS and geo databases as every other client — just v2run's field names:
     ``RouteOrder`` becomes an array, the site/IP lists become ``direct``/``proxy``/``block``
     groups, the DNS servers become ``dns.remote``/``dns.domestic``. Empty groups and fields
-    the template does not set are left out (all of them are optional in v2run), so the app
-    keeps its own defaults there.
+    the template does not set are left out (optional in v2run), so the app keeps its own
+    defaults there. ``id`` and ``name`` are always present: v2run rejects a profile
+    without ``id``, although its documentation does not list the field.
     """
+    name = template.get("Name") or "Routing"
     profile = {
-        "name": template.get("Name") or "Routing",
+        "id": v2run_profile_id(name),
+        "name": name,
         "globalProxy": _as_flag(template.get("GlobalProxy", "true")),
     }
 
