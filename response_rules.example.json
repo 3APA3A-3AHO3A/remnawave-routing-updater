@@ -80,6 +80,32 @@
           }
         ]
       }
+    },
+    {
+      "name": "v2run",
+      "enabled": true,
+      "operator": "AND",
+      "conditions": [
+        {
+          "headerName": "user-agent",
+          "operator": "CONTAINS",
+          "value": "v2run",
+          "caseSensitive": false
+        }
+      ],
+      "responseType": "XRAY_JSON",
+      "responseModifications": {
+        "headers": [
+          {
+            "key": "routing",
+            "value": "v2run://routing/onadd/BASE64"
+          },
+          {
+            "key": "force-json-routing",
+            "value": "1"
+          }
+        ]
+      }
     }
   ]
 }
