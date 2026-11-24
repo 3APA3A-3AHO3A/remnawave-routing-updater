@@ -93,6 +93,7 @@ def test_profile_carries_the_same_rules_dns_and_geo():
     assert templating.to_v2run_profile(copy.deepcopy(TEMPLATE)) == {
         "v2run": 1,
         "profile": {
+            "id": templating.v2run_profile_id("FixErrorVPN"),
             "name": "FixErrorVPN",
             "globalProxy": True,
             "routeOrder": ["BLOCK", "PROXY", "DIRECT"],
@@ -159,8 +160,29 @@ def test_dou_uses_the_ip_and_hosts_and_block_lists_are_kept():
 
 def test_minimal_template_yields_a_minimal_profile():
     profile = templating.to_v2run_profile({"GlobalProxy": "false", "RouteOrder": "nonsense"})
-    # Only the name is required by v2run; unusable or absent fields are left out.
-    assert profile == {"v2run": 1, "profile": {"name": "Routing", "globalProxy": False}}
+    # Only id and name are required by v2run; unusable or absent fields are left out.
+    assert profile == {
+        "v2run": 1,
+        "profile": {
+            "id": templating.v2run_profile_id("Routing"),
+            "name": "Routing",
+            "globalProxy": False,
+        },
+    }
+
+
+def test_profile_id_is_stable_and_shaped_like_the_apps_own():
+    first = templating.v2run_profile_id("FixErrorVPN")
+    assert first == templating.v2run_profile_id("FixErrorVPN")  # same on every cycle
+    assert first != templating.v2run_profile_id("OVRO CONNECT LTD")
+    assert len(first) == 13
+    assert set(first) <= set("0123456789abcdefghijklmnopqrstuvwxyz")
+
+
+def test_profile_id_survives_a_new_stamp():
+    first = templating.to_v2run_profile(dict(TEMPLATE, LastUpdated="1"))["profile"]["id"]
+    second = templating.to_v2run_profile(dict(TEMPLATE, LastUpdated="2"))["profile"]["id"]
+    assert first == second
 
 
 def test_build_links_has_a_v2run_link_with_its_own_payload():
