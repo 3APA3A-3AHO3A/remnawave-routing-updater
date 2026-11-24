@@ -67,6 +67,7 @@ def on_change_cycle(monkeypatch, saved):
     monkeypatch.setattr(core, "ENABLE_HAPP", True)
     monkeypatch.setattr(core, "ENABLE_INCY", False)
     monkeypatch.setattr(core, "ENABLE_FIXERRORVPN", True)
+    monkeypatch.setattr(core, "ENABLE_V2RUN", False)  # covered in tests/test_v2run.py
     monkeypatch.setattr(core, "AUTOROUTING_ENABLED", False)
 
 

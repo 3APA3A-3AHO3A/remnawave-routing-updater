@@ -300,6 +300,7 @@ def test_update_routing_pushes_minimal_patch(monkeypatch):
     stub_io(monkeypatch)
     monkeypatch.setattr(core, "ENABLE_HAPP", True)
     monkeypatch.setattr(core, "ENABLE_INCY", False)
+    monkeypatch.setattr(core, "ENABLE_V2RUN", False)
 
     client = FakeClient(settings(customResponseHeaders={"announce": "base64:keepme"}))
     core.update_routing(client)

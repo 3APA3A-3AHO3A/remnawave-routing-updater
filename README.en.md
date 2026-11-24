@@ -6,7 +6,7 @@
   <a href="https://github.com/3APA3A-3AHO3A/remnawave-routing-updater/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/3APA3A-3AHO3A/remnawave-routing-updater?label=release&color=1f6feb"></a>
   <a href="https://github.com/3APA3A-3AHO3A/remnawave-routing-updater/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/3APA3A-3AHO3A/remnawave-routing-updater/ci.yml?branch=master&label=CI"></a>
   <a href="https://github.com/remnawave"><img alt="Remnawave" src="https://img.shields.io/badge/Remnawave-2.x%20%7C%203.x-0e8a9e"></a>
-  <img alt="clients" src="https://img.shields.io/badge/clients-Happ%20%C2%B7%20INCY%20%C2%B7%20FixErrorVPN-8957e5">
+  <img alt="clients" src="https://img.shields.io/badge/clients-Happ%20%C2%B7%20INCY%20%C2%B7%20FixErrorVPN%20%C2%B7%20v2run-8957e5">
   <img alt="Python" src="https://img.shields.io/badge/python-3.12%20%7C%203.15-3776ab">
   <a href="https://github.com/3APA3A-3AHO3A/remnawave-routing-updater/pkgs/container/remnawave-routing-updater"><img alt="docker" src="https://img.shields.io/badge/docker-ghcr.io%20%C2%B7%20amd64%20%7C%20arm64-1f6feb"></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/github/license/3APA3A-3AHO3A/remnawave-routing-updater?color=6e7681"></a>
@@ -16,7 +16,7 @@
   <a href="#installation-and-launch">🚀 Install</a> &nbsp;·&nbsp; <a href="#environment-variables">⚙️ Configuration</a> &nbsp;·&nbsp; <a href="#geo-databases-mirror-and-trimming">🗺️ Geo mirror</a> &nbsp;·&nbsp; <a href="#web-server-reverse-proxy-setup">🌐 Reverse proxy</a> &nbsp;·&nbsp; <a href="#troubleshooting">🐞 Troubleshooting</a> &nbsp;·&nbsp; <a href="README.md">🇷🇺 Русский</a>
 </p>
 
-A standalone Python + Docker microservice that automatically keeps routing databases (`geoip`, `geosite`) up to date for **Happ**, **INCY** and **FixErrorVPN** (Windows) clients in the [Remnawave](https://github.com/remnawave) control panel.
+A standalone Python + Docker microservice that automatically keeps routing databases (`geoip`, `geosite`) up to date for **Happ**, **INCY**, **FixErrorVPN** (Windows) and **v2run** (iOS) clients in the [Remnawave](https://github.com/remnawave) control panel.
 
 The script talks to the **official Remnawave API** to update subscription settings, which makes it as safe as possible — no direct database access whatsoever. Logs are rotated automatically by Docker's built-in mechanism.
 
@@ -24,7 +24,7 @@ The script talks to the **official Remnawave API** to update subscription settin
 > **Quick start.** No cloning or building: download three files (`docker-compose.yml`, `.env`, `my-template.json`), put your API token into `.env` and run `docker compose up -d`. Step by step — [Installation and launch](#installation-and-launch).
 
 > [!IMPORTANT]
-> **What it changes in the panel.** Only the `routing` / `autorouting` headers of the Happ, INCY and FixErrorVPN response rules (a missing Happ / INCY rule is created above your catch-all; FixErrorVPN rules are never created). Nothing is ever deleted, disabled or reordered.
+> **What it changes in the panel.** Only the `routing` / `autorouting` headers of the Happ, INCY, FixErrorVPN and v2run response rules (a missing Happ / INCY / v2run rule is created above your catch-all; FixErrorVPN rules are never created). Nothing is ever deleted, disabled or reordered.
 
 ## What it looks like
 
@@ -44,8 +44,9 @@ The script talks to the **official Remnawave API** to update subscription settin
 - Works on **Remnawave 2.x and 3.x** with the same image — the only API it writes to (Response Rules) is identical on both majors.
 - **Happ and INCY are both supported out of the box**, handled by the exact same code path — one less thing to configure or get wrong.
 - **FixErrorVPN (Windows app)** gets the same `routing` and `autorouting` headers with its own `fixerrorvpn://` scheme — in its own rules, which you create yourself.
+- **v2run (iOS, successor of v2rayTUN)** gets the same routing converted to its own profile format: the same rules, DNS and geo databases.
 - The routing link goes into the matching **Response Rule** and nowhere else. Custom response headers and any other header on the rule are never touched.
-- Missing rule? For Happ and INCY it is **auto-created**, directly above your catch-all rule, so manual panel setup is optional.
+- Missing rule? For Happ, INCY and v2run it is **auto-created**, directly above your catch-all rule, so manual panel setup is optional.
 - Generates the `routing.json` used by the `autorouting` feature of INCY and FixErrorVPN, and checks on startup that your reverse proxy actually serves it.
 
 **Geo databases (`geoip` / `geosite`)**
@@ -63,7 +64,7 @@ The script talks to the **official Remnawave API** to update subscription settin
 flowchart LR
     U["<b>routing-updater</b><br/>every 6 h"] -- "official API<br/>Response Rules" --> P["Remnawave panel"]
     U -- "routing.json<br/>geoip / geosite (optional)" --> W["Your web server<br/>Nginx · Angie · Caddy · Traefik"]
-    P -- "subscription<br/>routing header" --> C["Happ / INCY / FixErrorVPN clients"]
+    P -- "subscription<br/>routing header" --> C["Happ / INCY / FixErrorVPN / v2run clients"]
     C -- "fresh geoip / geosite" --> G["GitHub<br/>or your mirror"]
     C -. "autorouting" .-> W
 ```
@@ -79,13 +80,13 @@ This default assumes clients can reach the database links. Where GitHub is block
 ## Documentation
 
 <details>
-<summary><b>⚙️ Client support — Happ, INCY, FixErrorVPN, panel version</b></summary>
+<summary><b>⚙️ Client support — Happ, INCY, FixErrorVPN, v2run, panel version</b></summary>
 
 ### Client support
 
 Each client type is controlled by its own toggle in `.env`, so you enable only what you need.
 
-All clients are handled the same way: the routing link is written into the `routing` header of the client's own **Response Rule** and nowhere else. INCY and FixErrorVPN additionally support `autorouting`, which Happ has no equivalent for. The routing string (Base64) is the same for everyone — only the scheme differs: `happ://`, `incy://`, `fixerrorvpn://`.
+All clients are handled the same way: the routing link is written into the `routing` header of the client's own **Response Rule** and nowhere else. INCY and FixErrorVPN additionally support `autorouting`, which Happ has no equivalent for. The routing string (Base64) is the same for Happ, INCY and FixErrorVPN — only the scheme differs: `happ://`, `incy://`, `fixerrorvpn://`. v2run has a profile format of its own, built from the same template (see below).
 
 **Happ (`ENABLE_HAPP`) and INCY (`ENABLE_INCY`), both on by default.** For each enabled client the script updates the `routing` header of every response rule whose name contains `Happ` / `Incy` (case-insensitive), and creates one if none exists. Leaving a client enabled when you have no users on it costs one response rule and no requests, so there is rarely a reason to turn either off.
 
@@ -98,6 +99,12 @@ The app compares `LastUpdated` and the database URLs: when something changed, it
 
 **The script never creates FixErrorVPN rules** — not even with `CREATE_MISSING_RULES=true`. They need conditions on the app's User-Agent and a `responseType` per core, which is the panel owner's call. Create them yourself, e.g. `FixErrorVPN Xray` (`XRAY_JSON`, `user-agent` contains `FixErrorVPN` and `Xray-core`) and `FixErrorVPN Mihomo` (`MIHOMO`, `user-agent` contains `FixErrorVPN` and `mihomo`), and place them **above** the generic `Xray` and `Happ` rules — otherwise the app matches a generic rule and the `fixerrorvpn://` routing header never reaches it. With no matching rule at all you get a warning in the log and every other rule is left alone. The app's own headers in those rules (`fixerror-logo`, `fixerror-color`, `fixerror-buttons`, etc.) are never changed.
 
+**v2run (`ENABLE_V2RUN`), on by default.** The v2run iOS app (successor of v2rayTUN) requests the subscription with the User-Agent `v2run/ios/<ver>` and reads routing in a format of its own. The script converts the same template into it and writes the `routing` = `v2run://routing/onadd/<Base64>` header into every rule whose name contains `v2run` (case-insensitive; the substring is set by `V2RUN_RULE_MATCH`; a `v2raytun` rule is left alone — it does not contain `v2run`). With no such rule, one is created above the catch-all, as for Happ and INCY.
+
+- The profile carries `GlobalProxy`, `RouteOrder` (`block-proxy-direct` → `["BLOCK","PROXY","DIRECT"]`), `DomainStrategy`, the `DirectSites`/`DirectIp`, `ProxySites`/`ProxyIp`, `BlockSites`/`BlockIp` lists (empty ones are left out), DNS (`RemoteDNS*` → `dns.remote`, `DomesticDNS*` → `dns.domestic` with `direct: true`, `DnsHosts`, `FakeDNS`) and the geo database links — the mirror's, if enabled. v2run has no equivalent of `UseChunkFiles`.
+- A v2run profile has no `LastUpdated`, so `?v=<LastUpdated>` is appended to the database links: the stamp moves, the link changes, and the app downloads the databases again. The web server ignores the parameter and serves the same file.
+- The script touches no other v2run header. If the subscription is served as Xray JSON (`responseType` `XRAY_JSON`) with routing rules of its own in the templates, set `force-json-routing: 1` in the rule by hand — the JSON servers then follow their templates' rules, and the app profile only supplies the geo databases.
+
 **Other rules with the Happ routing (`HAPP_EXTRA_RULES`).** If another rule needs the Happ routing too — e.g. a generic `Xray` rule for every Xray-based client — list the **full** rule names, comma-separated: `HAPP_EXTRA_RULES=Xray`. The whole name is compared (case-insensitive), so `Xray` does not hit `FixErrorVPN Xray`. These rules are only ever updated, never created; if no rule has that name you get a warning in the log.
 
 **INCY and FixErrorVPN autorouting.** Set `AUTOROUTING_URL` to your served `routing.json` (see the reverse proxy section below). It is optional: leave it unset and INCY and FixErrorVPN run on the `routing` header alone — the `autorouting` header is not written at all rather than pointing clients at a placeholder, and a stale one left on an existing rule is removed. On the first cycle the service fetches that URL and logs whether your reverse proxy actually serves the file it just wrote.
@@ -105,7 +112,7 @@ The app compares `LastUpdated` and the database URLs: when something changed, it
 #### What the updater will and will not do to your rules
 
 - Rules are matched **top-down, first hit wins**, and a request matching nothing gets `403`. A created rule is therefore inserted **directly above your catch-all rule** (the conditionless one Remnawave seeds as `Fallback Base64`) — appending it below would make it dead config.
-- A created rule (Happ / INCY) **inherits the catch-all's `responseType`**, so your Happ/INCY users keep receiving exactly the subscription format they receive today; the only change is the added header. Override with `HAPP_RESPONSE_TYPE` / `INCY_RESPONSE_TYPE`, or set `CREATE_MISSING_RULES=false` to get a warning instead of a new rule.
+- A created rule (Happ / INCY / v2run) **inherits the catch-all's `responseType`**, so your Happ/INCY/v2run users keep receiving exactly the subscription format they receive today; the only change is the added header. Override with `HAPP_RESPONSE_TYPE` / `INCY_RESPONSE_TYPE` / `V2RUN_RESPONSE_TYPE`, or set `CREATE_MISSING_RULES=false` to get a warning instead of a new rule.
 - Rules that already exist keep their own `responseType`, `conditions`, `enabled` flag, position, and every header the updater does not manage (`support-email`, `announce-url`, …).
 - Nothing is ever deleted, disabled or reordered, and nothing outside `responseRules` is written.
 
@@ -136,10 +143,11 @@ All parameters live in the `.env` file (created from `.env.example`):
 | `ENABLE_HAPP` | Enable Happ support (updates or creates the Happ rule) | `true` |
 | `ENABLE_INCY` | Enable INCY support (updates or creates the Incy rule) | `true` |
 | `ENABLE_FIXERRORVPN` | Enable support for the FixErrorVPN Windows app (only updates its rules, never creates them) | `true` |
-| `HAPP_RULE_MATCH` / `INCY_RULE_MATCH` / `FIXERRORVPN_RULE_MATCH` | Substring used to find each client's rule by name (case-insensitive) | `happ` / `incy` / `fixerrorvpn` |
+| `ENABLE_V2RUN` | Enable support for the v2run iOS app (updates or creates the v2run rule) | `true` |
+| `HAPP_RULE_MATCH` / `INCY_RULE_MATCH` / `FIXERRORVPN_RULE_MATCH` / `V2RUN_RULE_MATCH` | Substring used to find each client's rule by name (case-insensitive) | `happ` / `incy` / `fixerrorvpn` / `v2run` |
 | `HAPP_EXTRA_RULES` | Full names of other rules, comma-separated, that also get the Happ `routing` header (e.g. a generic `Xray`); update only | — |
-| `CREATE_MISSING_RULES` | Create a Happ / INCY rule above the catch-all when none matches (does not apply to FixErrorVPN) | `true` |
-| `HAPP_RESPONSE_TYPE` / `INCY_RESPONSE_TYPE` | `responseType` for auto-created rules only; empty = inherit from the catch-all | — (inherit) |
+| `CREATE_MISSING_RULES` | Create a Happ / INCY / v2run rule above the catch-all when none matches (does not apply to FixErrorVPN) | `true` |
+| `HAPP_RESPONSE_TYPE` / `INCY_RESPONSE_TYPE` / `V2RUN_RESPONSE_TYPE` | `responseType` for auto-created rules only; empty = inherit from the catch-all | — (inherit) |
 | `CLEAR_LEGACY_HAPP_ROUTING` | Panel 2.x only: null out the legacy `happRouting` field | `false` |
 | `AUTOROUTING_URL` | URL your web server serves `routing.json` from (optional; enables `autorouting` for INCY and FixErrorVPN — unset = `routing` only) | — (unset) |
 | `UPDATE_INTERVAL_SECONDS` | Update interval in seconds | `21600` (6 hours) |
@@ -172,7 +180,7 @@ The service ships as a prebuilt image on the **GitHub Container Registry**, so t
    ```bash
    nano .env
    ```
-   *Paste your `API_TOKEN`, set `PANEL_URL`, and enable the clients you need (`ENABLE_HAPP` / `ENABLE_INCY` / `ENABLE_FIXERRORVPN`). For INCY and FixErrorVPN, also set `AUTOROUTING_URL`.*
+   *Paste your `API_TOKEN`, set `PANEL_URL`, and enable the clients you need (`ENABLE_HAPP` / `ENABLE_INCY` / `ENABLE_FIXERRORVPN` / `ENABLE_V2RUN`). For INCY and FixErrorVPN, also set `AUTOROUTING_URL`.*
 
 3. Edit your routing template `my-template.json`:
    ```bash
@@ -216,7 +224,7 @@ docker compose up -d --build
 
 On a successful start you'll see lines like these in the logs:
 ```
-Service started. Interval: 21600 sec. | API: https://panel.your-domain.com | Happ: on, Incy: off, FixErrorVPN: off | Geo mirror: off, Stamp: interval
+Service started. Interval: 21600 sec. | API: https://panel.your-domain.com | Happ: on, Incy: off, FixErrorVPN: off, v2run: off | Geo mirror: off, Stamp: interval
 File /app/output/routing.json saved successfully.
 ✅ Remnawave database updated successfully! Happ: field set, 1 rule(s) updated
 ```
@@ -233,7 +241,7 @@ The container also reports a Docker health status: `docker ps` shows `healthy` o
 
 Where GitHub is blocked, you can serve the databases yourself and even shrink them to what your template uses.
 
-Happ/INCY clients download `geoip.dat` / `geosite.dat` from the URLs in your template
+Happ/INCY/v2run clients download `geoip.dat` / `geosite.dat` from the URLs in your template
 (`Geoipurl` / `Geositeurl`) — by default from GitHub. Where GitHub is blocked these downloads
 fail on the client, which breaks routing. This service can mirror both databases onto your own
 server (next to `routing.json`) and hand clients your domain instead.
@@ -486,11 +494,11 @@ Match `entryPoints`/`certResolver` to your `traefik.yml`. *Recreate:* `docker co
 
 **Startup / API**
 - **`CRITICAL ERROR: API_TOKEN is not set`** — `API_TOKEN` is empty in `.env`.
-- **`CRITICAL ERROR: ENABLE_HAPP, ENABLE_INCY and ENABLE_FIXERRORVPN are all disabled`** — enable at least one client.
+- **`CRITICAL ERROR: ENABLE_HAPP, ENABLE_INCY, ENABLE_FIXERRORVPN and ENABLE_V2RUN are all disabled`** — enable at least one client.
 - **`No response rule matching 'fixerrorvpn' found — FixErrorVPN routing was not delivered`** — the panel has no FixErrorVPN rule. The script does not create one: add rules matching the app's User-Agent above the generic `Xray` / `Happ` rules (see [Client support](#client-support)), or set `ENABLE_FIXERRORVPN=false` if nobody uses the app.
 - **`AUTOROUTING_URL check: ... returned HTTP 404`** — the reverse proxy is not serving `routing.json`. Compare the `location` block against the volume this container writes to; the URL in `.env` must match the public one exactly, including `https://`.
 - **`AUTOROUTING_URL check: ... serves a different/older file`** — the proxy points at a different directory than the one the container writes to. Check the volume mapping on both sides.
-- **The log says success, but Happ/INCY users get no routing profile** — open *Subscription Settings → Response Rules* and check the rule order. Rules are matched top-down and the first hit wins, so a rule sitting below the conditionless `Fallback Base64` rule never fires. Move it above.
+- **The log says success, but Happ/INCY/v2run users get no routing profile** — open *Subscription Settings → Response Rules* and check the rule order. Rules are matched top-down and the first hit wins, so a rule sitting below the conditionless `Fallback Base64` rule never fires. Move it above.
 - **`AUTOROUTING_URL not set … autorouting header is skipped`** — not an error: INCY and FixErrorVPN run on the `routing` header only. Set a real link in `.env` to enable the `autorouting` feature.
 - **`API error: 'response' object not found`** — wrong `PANEL_URL`, or a token without `Subscription Template: Read/Write`.
 

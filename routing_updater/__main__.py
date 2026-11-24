@@ -11,6 +11,7 @@ from .config import (
     ENABLE_FIXERRORVPN,
     ENABLE_HAPP,
     ENABLE_INCY,
+    ENABLE_V2RUN,
     GEO_MIRROR_ENABLED,
     GEO_TRIM_ENABLED,
     GEOIP_URL,
@@ -38,10 +39,10 @@ def main():
         logger.error("CRITICAL ERROR: API_TOKEN is not set in .env!")
         raise SystemExit(1)
 
-    if not ENABLE_HAPP and not ENABLE_INCY and not ENABLE_FIXERRORVPN:
+    if not (ENABLE_HAPP or ENABLE_INCY or ENABLE_FIXERRORVPN or ENABLE_V2RUN):
         logger.error(
-            "CRITICAL ERROR: ENABLE_HAPP, ENABLE_INCY and ENABLE_FIXERRORVPN are all "
-            "disabled. Enable at least one in .env!"
+            "CRITICAL ERROR: ENABLE_HAPP, ENABLE_INCY, ENABLE_FIXERRORVPN and ENABLE_V2RUN "
+            "are all disabled. Enable at least one in .env!"
         )
         raise SystemExit(1)
 
@@ -93,7 +94,8 @@ def main():
         f"Service started. Interval: {UPDATE_INTERVAL} sec. | API: {PANEL_URL} | "
         f"Panel version: {PANEL_VERSION} | "
         f"Happ: {'on' if ENABLE_HAPP else 'off'}, Incy: {'on' if ENABLE_INCY else 'off'}, "
-        f"FixErrorVPN: {'on' if ENABLE_FIXERRORVPN else 'off'} | "
+        f"FixErrorVPN: {'on' if ENABLE_FIXERRORVPN else 'off'}, "
+        f"v2run: {'on' if ENABLE_V2RUN else 'off'} | "
         f"Geo mirror: {'on' if GEO_MIRROR_ENABLED else 'off'}"
         f"{' (trimmed)' if GEO_MIRROR_ENABLED and GEO_TRIM_ENABLED else ''}, "
         f"Stamp: {STAMP_MODE}"

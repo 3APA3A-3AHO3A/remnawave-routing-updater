@@ -19,6 +19,7 @@ from .config import (
     ENABLE_FIXERRORVPN,
     ENABLE_HAPP,
     ENABLE_INCY,
+    ENABLE_V2RUN,
     FIXERRORVPN_RULE_MATCH,
     GEO_CACHE_DIR,
     GEO_DIR,
@@ -35,6 +36,8 @@ from .config import (
     REQUEST_TIMEOUT,
     RETRY_ATTEMPTS,
     STAMP_MODE,
+    V2RUN_RESPONSE_TYPE,
+    V2RUN_RULE_MATCH,
 )
 from .logger import logger
 from .runtime import interruptible_sleep, shutdown_event
@@ -120,13 +123,16 @@ def apply_changes(
     enable_happ,
     enable_incy,
     enable_fixerrorvpn=False,
+    enable_v2run=False,
     incy_autorouting=True,
     fixerrorvpn_autorouting=True,
     happ_response_type=HAPP_RESPONSE_TYPE,
     incy_response_type=INCY_RESPONSE_TYPE,
+    v2run_response_type=V2RUN_RESPONSE_TYPE,
     happ_match=HAPP_RULE_MATCH,
     incy_match=INCY_RULE_MATCH,
     fixerrorvpn_match=FIXERRORVPN_RULE_MATCH,
+    v2run_match=V2RUN_RULE_MATCH,
     happ_extra_rules=HAPP_EXTRA_RULES,
     create_missing=CREATE_MISSING_RULES,
 ):
@@ -150,6 +156,9 @@ def apply_changes(
     ``happ_extra_rules`` are full rule names (e.g. a generic ``Xray`` rule) that get the
     same Happ ``routing`` header. They are updated only, never created, and they do not
     count as "the Happ rule exists" — a missing Happ rule is still created as usual.
+
+    v2run is handled like Happ (one ``routing`` header, rule created when missing), but its
+    link carries its own profile format — see ``templating.to_v2run_profile``.
     """
     summary = []
 
@@ -210,6 +219,20 @@ def apply_changes(
                 kv_pairs=kv_pairs,
                 remove_keys=remove_keys,
                 note=note,
+            )
+        )
+
+    if enable_v2run:
+        summary.append(
+            _sync_client_rules(
+                data,
+                keyword=v2run_match,
+                rule_name="v2run",
+                user_agent="v2run",
+                kv_pairs=[("routing", links["v2run_routing"])],
+                remove_keys=(),
+                response_type=v2run_response_type,
+                create_missing=create_missing,
             )
         )
 
@@ -394,6 +417,7 @@ def update_routing(client):
                 enable_happ=ENABLE_HAPP,
                 enable_incy=ENABLE_INCY,
                 enable_fixerrorvpn=ENABLE_FIXERRORVPN,
+                enable_v2run=ENABLE_V2RUN,
                 incy_autorouting=AUTOROUTING_ENABLED,
                 fixerrorvpn_autorouting=AUTOROUTING_ENABLED,
             )

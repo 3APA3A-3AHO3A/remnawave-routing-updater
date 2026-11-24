@@ -215,6 +215,7 @@ def test_update_routing_sends_fixerrorvpn_headers(monkeypatch):
     monkeypatch.setattr(core, "ENABLE_HAPP", False)
     monkeypatch.setattr(core, "ENABLE_INCY", False)
     monkeypatch.setattr(core, "ENABLE_FIXERRORVPN", True)
+    monkeypatch.setattr(core, "ENABLE_V2RUN", False)
 
     class Client:
         patched = None

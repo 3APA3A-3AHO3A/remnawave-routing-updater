@@ -65,11 +65,18 @@ ENABLE_INCY = _as_bool(os.getenv("ENABLE_INCY"), default=True)
 # type per core, which only the panel owner can set up. No matching rule -> a warning.
 ENABLE_FIXERRORVPN = _as_bool(os.getenv("ENABLE_FIXERRORVPN"), default=True)
 
+# v2run (iOS, successor of v2rayTUN) reads its own routing-profile format, so it gets a
+# converted copy of the same template in a ``v2run://routing/onadd/...`` header. Handled
+# like Happ and INCY: its rule is updated, or created above the catch-all when missing.
+ENABLE_V2RUN = _as_bool(os.getenv("ENABLE_V2RUN"), default=True)
+
 # Substring used to find each client's rule (case-insensitive match on the rule name).
 # Override if your rules are named something else, e.g. "Happ clients".
 HAPP_RULE_MATCH = os.getenv("HAPP_RULE_MATCH", "happ").strip().lower()
 INCY_RULE_MATCH = os.getenv("INCY_RULE_MATCH", "incy").strip().lower()
 FIXERRORVPN_RULE_MATCH = os.getenv("FIXERRORVPN_RULE_MATCH", "fixerrorvpn").strip().lower()
+# "v2run" does not occur in "v2raytun", so the old app's rule is never picked up.
+V2RUN_RULE_MATCH = os.getenv("V2RUN_RULE_MATCH", "v2run").strip().lower()
 
 # Extra rules that should carry the Happ ``routing`` header too, picked by their FULL name
 # (comma-separated, case-insensitive), e.g. a generic "Xray" rule serving every Xray-based
@@ -91,6 +98,7 @@ CREATE_MISSING_RULES = _as_bool(os.getenv("CREATE_MISSING_RULES"), default=True)
 # then changes nothing except adding the routing header. Set explicitly to override.
 HAPP_RESPONSE_TYPE = os.getenv("HAPP_RESPONSE_TYPE", "").strip()
 INCY_RESPONSE_TYPE = os.getenv("INCY_RESPONSE_TYPE", "").strip()
+V2RUN_RESPONSE_TYPE = os.getenv("V2RUN_RESPONSE_TYPE", "").strip()
 
 # ---- Legacy cleanup (panel 2.x only) ----
 # On 2.x the panel still has the dedicated ``happRouting`` field, whose value is sent to
