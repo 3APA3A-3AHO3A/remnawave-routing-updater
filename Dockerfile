@@ -3,7 +3,14 @@ FROM python:3.15-alpine
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# pip нужен только на сборке. После установки зависимостей он удаляется вместе
+# с ensurepip: в работе сервиса он не участвует, а во вложенных копиях библиотек
+# (pip/_vendor: urllib3, msgpack, pkg_resources) сканеры находят уязвимости,
+# которые обновлением requirements.txt не закрыть.
+RUN pip install --no-cache-dir -r requirements.txt \
+ && ENSUREPIP_DIR="$(python -c 'import ensurepip, os; print(os.path.dirname(ensurepip.__file__))')" \
+ && pip uninstall -y pip \
+ && rm -rf "$ENSUREPIP_DIR" /root/.cache
 
 COPY . .
 
