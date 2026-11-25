@@ -1,6 +1,6 @@
 [project]
 name = "remnawave-routing-updater"
-version = "2.4.1"
+version = "2.4.2"
 description = "Automatically keeps geoip/geosite routing fresh for Happ, INCY, FixErrorVPN & v2run clients in Remnawave."
 readme = "README.md"
 requires-python = ">=3.12"
